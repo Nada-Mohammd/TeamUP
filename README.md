@@ -1,5 +1,5 @@
 # TeamUP
-## ⚙️ Setup & Installation
+## Setup & Installation
 
 1. Clone this repository:
    ```bash
