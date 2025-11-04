@@ -3,7 +3,7 @@
 
 1. Clone this repository:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/TeamUp_backend.git
+   git clone https://github.com/Nada-Mohammd/TeamUP.git
    cd TeamUp_backend
 2. Install dependencies: npm install
 3. start the server:   npm start
