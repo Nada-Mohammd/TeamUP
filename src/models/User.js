@@ -9,9 +9,14 @@ const userSchema = new Schema(
     // --- user_id has been removed ---
     // We will use the default Mongoose `_id` as the unique Primary Key.
 
-    full_name: {
+    first_name: {
       type: String,
-      required: [true, 'Full name is required.'],
+      required: [true, 'First name is required.'],
+      trim: true,
+    },
+    last_name: {
+      type: String,
+      required: [true, 'Last name is required.'],
       trim: true,
     },
     email: {
@@ -53,7 +58,7 @@ const userSchema = new Schema(
     password: {
       type: String,
       // Password is only required if googleId is not present
-      required: function () {
+      required: function () { 
         return !this.googleId;
       },
       minlength: [6, 'Password must be at least 6 characters long.'],
