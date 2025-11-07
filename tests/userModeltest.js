@@ -23,13 +23,14 @@ async function runTest() {
     console.log("Attempting to create a new student...");
     const testStudent = new User({
       // Mongoose handles the _id
-      full_name: "Nada Mohammed",
-      email: "2022@stud.fci-cu.edu.eg", // Email matching the 'Student' validation
-      username: "nada_", // Must be unique
-      password: "12455678900", // Will be hashed by the pre-save hook
+      first_name: "Nada",
+      last_name: "Mohammed",
+      email: "20221157@stud.fci-cu.edu.eg", 
+      username: "nada11", 
+      password: "123456", 
       role: "Student",
-      profile_id: null, // Allowed since it's optional
-      googleId:"123456789"
+      profile_id: null, 
+      googleId:"12345678950"
     });
 
     // 4. Try to save the user to the database
