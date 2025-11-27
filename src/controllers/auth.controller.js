@@ -2,8 +2,6 @@ const User = require("../models/User");
 const jwt = require("jsonwebtoken");
 const { registerUser } = require("../services/auth.service");
 const { createSendToken } = require("../utils/authUtils");
-const DEFAULT_SECRET =
-  "aWf1@G7hJkL2$mN3%oP4^qR5&sT6*uV7(wX8)yZ9~A0bCdE!fGhIjKlMnOpQrStUvWxYz";
 
 // POST /api/auth/register
 const register = async (req, res, next) => {
