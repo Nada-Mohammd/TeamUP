@@ -1,3 +1,4 @@
+const jwt = require("jsonwebtoken");
 const createSendToken = (user, statusCode, req, res, rememberMe) => {
   const secret = process.env.JWT_SECRET || process.env.DEFAULT_SECRET;
   const expiresIn = rememberMe ? "30d" : "1h"; // 30 days vs 1 hour

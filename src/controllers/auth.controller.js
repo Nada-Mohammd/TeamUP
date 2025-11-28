@@ -1,6 +1,7 @@
 const User = require("../models/User");
+const axios = require("axios");
 const jwt = require("jsonwebtoken");
-const { registerUser } = require("../services/auth.service");
+const { registerUser, googleAuth } = require("../services/auth.service");
 const { createSendToken } = require("../utils/authUtils");
 
 // POST /api/auth/register
@@ -99,7 +100,31 @@ const login = async (req, res, next) => {
     next(error);
   }
 };
+
+// POST /api/auth/google
+const google = async (req, res) => {
+  try {
+    const { role, first_name, last_name, username, token } = req.body;
+
+    const { user, statusCode } = await googleAuth({
+      role,
+      first_name,
+      last_name,
+      username,
+      token,
+    });
+
+    return createSendToken(user, statusCode, req, res, true);
+  } catch (err) {
+    console.error("Google auth error:", err);
+    return res
+      .status(err.status || 500)
+      .json({ status: "fail", message: err.message || "Google authentication failed" });
+  }
+};
+
 module.exports = {
   login,
   register,
+  google,
 };
