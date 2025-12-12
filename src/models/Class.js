@@ -1,3 +1,4 @@
+// classModel.js
 const mongoose = require('mongoose');
 const { Schema, model } = mongoose;
 
@@ -9,12 +10,20 @@ const classSchema = new Schema(
       trim: true,
       maxlength: [255, 'Course name cannot exceed 255 characters.'],
     },
-    class_code: {
+    course_code: {
       type: String,
-      required: [true, 'Class code is required.'],
+      required: [true, 'Course code (e.g., DS342) is required.'],
       trim: true,
       uppercase: true,
-      maxlength: [50, 'Class code cannot exceed 50 characters.'],
+      match: [/^[A-Z]{2,4}\d{3,4}$/, 'Course code must be in format like DS342 or CS1010.'],
+    },
+    class_code: {
+      type: String,
+      required: [true, 'Class invite code is required.'],
+      trim: true,
+      uppercase: true,
+      unique: true,
+      maxlength: [10, 'Class code cannot exceed 10 characters.'],
     },
     year: {
       type: Number,
@@ -31,7 +40,6 @@ const classSchema = new Schema(
       type: String,
       trim: true,
     },
-    // FK: created_by → User
     createdBy: {
       type: Schema.Types.ObjectId,
       ref: 'User',
@@ -39,22 +47,20 @@ const classSchema = new Schema(
     },
   },
   {
-    // Automatically adds createdAt and updatedAt fields
     timestamps: true,
   }
 );
 
-// Validate that createdBy is an instructor
+//validate instructor 
 classSchema.pre('save', async function (next) {
-  if (!this.isNew && !this.isModified('createdBy')) return next();
-
-  const user = await this.model('User').findById(this.createdBy);
-  if (!user || user.role !== 'Instructor') {
-    return next(new Error('Only instructors can create classes.'));
+  if (this.isNew) {
+    const User = this.model('User');
+    const user = await User.findById(this.createdBy).select('role');
+    if (!user || user.role !== 'Instructor') {
+      return next(new Error('Only instructors can create classes.'));
+    }
   }
-
   next();
 });
 
-const Class = model('Class', classSchema);
-module.exports = Class;
+module.exports = model('Class', classSchema);
