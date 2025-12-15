@@ -24,4 +24,18 @@ const createClass = async (req, res) => {
   }
 };
 
-module.exports = { createClass };
+// GET /api/classes/:classId/class-code
+const getClassCode = async (req, res) => {
+  try {
+    const { classId } = req.params;
+    const userId = req.user.id;
+
+    const classCode = await classService.getClassCode(classId, userId);
+
+    res.status(200).json({ class_code: classCode });
+  } catch (error) {
+    res.status(403).json({ message: error.message });
+  }
+};
+
+module.exports = { createClass, getClassCode };

@@ -1,7 +1,6 @@
 const Class = require('../models/Class');
 const ClassProfile = require('../models/ClassProfile');
 const User = require('../models/User');
-const crypto = require('crypto');
 const generateClassCode = require('../utils/ClassUtils/classCodeGeneration');
 
 const createClass = async (instructorId, classData) => {
@@ -50,4 +49,24 @@ const createClass = async (instructorId, classData) => {
   return newClass;
 };
 
-module.exports = { createClass };
+const getClassCode = async (classId, userId) => {
+  const membership = await ClassProfile.findOne({ classId, userId });
+
+  if (!membership) {
+    throw new Error('Not a class member');
+  }
+
+  if (membership.classRole !== 'admin') {
+    throw new Error('Admins only can view class code');
+  }
+
+  const classObj = await Class.findById(classId).select('class_code');
+
+  if (!classObj) {
+    throw new Error('Class not found');
+  }
+
+  return classObj.class_code;
+};
+
+module.exports = { createClass, getClassCode };

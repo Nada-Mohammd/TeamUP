@@ -7,4 +7,7 @@ const { protect } = require('../middlewares/auth'); // Middleware to check logge
 // POST /api/classes
 router.post('/create', protect, classController.createClass);
 
+// GET /api/classes
+router.get('/:classId/class-code', protect, classController.getClassCode);
+
 module.exports = router;
