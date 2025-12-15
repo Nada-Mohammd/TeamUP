@@ -33,7 +33,6 @@ const classSchema = new Schema(
     },
     policy: {
       type: String,
-      required: [true, 'Class policy is required.'],
       trim: true,
     },
     course_plan: {
