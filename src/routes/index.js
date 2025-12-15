@@ -14,6 +14,7 @@ const router = express.Router();
 
 // 1. Import all your feature routers
 const authRoutes = require('./auth.routes');
+const classRoutes = require('./class.routes');
 // const workspaceRoutes = require('./workspace.routes');
 // const teamRoutes = require('./team.routes');
 // const projectRoutes = require('./project.routes');
@@ -21,6 +22,7 @@ const authRoutes = require('./auth.routes');
 
 // 2. Mount them on their base paths
 router.use('/auth', authRoutes); 
+router.use('/classes', classRoutes);
 
 // --- COMMENTED OUT ---
 // router.use('/workspaces', workspaceRoutes);
