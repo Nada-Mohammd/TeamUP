@@ -1,2 +1,2 @@
-const courseClass = require('../models/Class');
-const courseClassProfile = require('../models/ClassProfile');
+const Class = require('../models/Class');
+const ClassProfile = require('../models/ClassProfile');
