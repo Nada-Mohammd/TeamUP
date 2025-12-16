@@ -11,9 +11,9 @@ const createClass = async (instructorId, classData) => {
   }
 
   // Step 2: Validate input fields
-  const { course_name, course_code, year, policy, course_plan } = classData;
+  const { course_name, course_code, year, course_plan } = classData;
   if (!course_name || !course_code || !year) {
-    throw new Error('Missing required fields: course_name, course_code, year.');
+    throw new Error('Missing required fields: course name, course code, year.');
   }
 
   // Step 3: Generate unique class code
@@ -33,7 +33,6 @@ const createClass = async (instructorId, classData) => {
     course_name,
     course_code,
     year,
-    policy,
     course_plan: course_plan || '',
     createdBy: instructorId,
     class_code,

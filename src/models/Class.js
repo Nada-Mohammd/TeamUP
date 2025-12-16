@@ -31,10 +31,6 @@ const classSchema = new Schema(
       min: [2000, 'Year must be 2000 or later.'],
       max: [2100, 'Year must be 2100 or earlier.'],
     },
-    policy: {
-      type: String,
-      trim: true,
-    },
     course_plan: {
       type: String,
       trim: true,

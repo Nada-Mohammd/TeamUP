@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 
 const classController = require('../controllers/class.controller');
-const { protect, authenticate, authorize, checkClassRole } = require('../middlewares/auth'); // Middleware to check logged-in user
+const { authenticate, authorize, checkClassRole } = require('../middlewares/auth');
 
 // POST /api/classes
 router.post('/create', 
