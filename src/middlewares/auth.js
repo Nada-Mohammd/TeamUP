@@ -1,0 +1,65 @@
+const jwt = require("jsonwebtoken");
+const User = require("../models/User");
+
+//authentication
+const authenticate = async (req, res, next) => {
+  try {
+    let token;
+
+    if (req.headers.authorization) {
+      token = req.headers.authorization;
+    }
+    //or get token from cookie (browser)
+    else if (req.cookies && req.cookies.jwt) {
+      token = req.cookies.jwt;
+    }
+    if (!token) {
+      return res.status(401).json({
+        status: "fail",
+        message: "You are not logged in. Token missing.",
+      });
+    }
+
+    const secret = process.env.JWT_SECRET || process.env.DEFAULT_SECRET;
+    const decoded = jwt.verify(token, secret);
+ 
+
+    const user = await User.findById(decoded.id);
+    if (!user) {
+      return res.status(401).json({
+        status: "fail",
+        message: "The user belonging to this token no longer exists.",
+      });
+    }
+
+    req.user = user;
+    next();
+  } catch (err) {
+    return res.status(401).json({
+      status: "fail",
+      message: "Invalid or expired token.",
+    });
+  }
+};
+
+//authorization
+const authorize = (...roles) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ message: "User not authenticated" });
+    }
+
+    if (!roles.includes(req.user.role)) {
+      return res.status(403).json({
+        message: "You do not have permission to perform this action",
+      });
+    }
+
+    next();
+  };
+};
+
+module.exports = {
+  authenticate,
+  authorize,
+};
