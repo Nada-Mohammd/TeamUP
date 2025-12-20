@@ -2,6 +2,7 @@ const Section = require('../models/Section');
 const SectionMember = require('../models/SectionMember');
 const User = require('../models/User');
 const mongoose = require('mongoose');
+const ClassProfile = require('../models/ClassProfile');
 /**
  * Create section and assign instructors
  */
@@ -93,24 +94,33 @@ exports.deleteSection = async ({ classId, sectionId }) => {
  * Student joins section
  */
 exports.joinSection = async ({ classId, sectionId, userId }) => {
-  const section = await Section.findOne({ _id: sectionId, classId });
-  if (!section) {
-    throw { status: 404, message: 'Section does not belong to this class.' };
-  }
-
+  //Check user is a student
   const user = await User.findById(userId);
   if (!user || user.role !== 'Student') {
     throw { status: 403, message: 'Only students can join sections.' };
   }
 
-  const exists = await SectionMember.findOne({ sectionId, userId });
-  if (exists) {
-    throw { status: 409, message: 'Student already joined this section.' };
+  //Validate: student is enrolled in the class
+  const classMembership = await ClassProfile.findOne({ classId, userId });
+  if (!classMembership) {
+    throw { status: 403, message: 'You are not enrolled in this class.' };
   }
 
+  //Validate: section belongs to class
+  const section = await Section.findOne({ _id: sectionId, classId });
+  if (!section) {
+    throw { status: 404, message: 'Section does not belong to this class.' };
+  }
+
+  //Prevent duplicate join
+  const existingJoin = await SectionMember.findOne({ sectionId, userId });
+  if (existingJoin) {
+    throw { status: 409, message: 'You have already joined this section.' };
+  }
+
+  //Join section
   return await SectionMember.create({ sectionId, userId });
 };
-
 /**
  * Get all members of a section (students + instructors)
  */
