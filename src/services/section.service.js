@@ -172,7 +172,6 @@ exports.assignInstructorsToSection = async ({ classId, sectionId, instructorIds 
   const newInstructors = instructorIds.filter(id => !existingIds.includes(id.toString()));
 
   if (newInstructors.length === 0) {
-    // All already assigned → return success (idempotent)
     return { assigned: [], message: 'All instructors already assigned.' };
   }
 
