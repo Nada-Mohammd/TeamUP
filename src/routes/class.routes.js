@@ -2,8 +2,8 @@ const express = require("express");
 const router = express.Router();
 
 const classController = require('../controllers/class.controller');
-const { authenticate, authorize, checkClassRole } = require('../middlewares/auth');
-
+const { authenticate, authorize, authorizeClassRole } = require('../middlewares/auth');
+const sectionRoutes = require('./section.routes');
 // POST /api/classes
 router.post('/create', 
     authenticate, 
@@ -14,7 +14,10 @@ router.post('/create',
 router.get('/:classId/class-code', 
     authenticate, 
     authorize('Instructor'), 
-    checkClassRole('admin'), 
+    authorizeClassRole('admin'), 
     classController.getClassCode);
+
+// /api/classes/:id/sections
+router.use('/', sectionRoutes);
 
 module.exports = router;
