@@ -28,7 +28,7 @@ describe('Class Creation Service', () => {
 
       await expect(classService.createClass('userId', { course_name: 'A' }))
         .rejects
-        .toThrow('Missing required fields: course_name, course_code, year.');
+        .toThrow('Missing required fields: course name, course code, year.');
     });
 
     it('creates class and assigns instructor as admin', async () => {

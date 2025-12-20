@@ -30,5 +30,7 @@ io.on('connection', (socket) => {
   });
 });
 
-server.listen(3000, () => console.log('Server running on 3000'));
+if (process.env.NODE_ENV !== "test") {
+  server.listen(3000, () => console.log("Server running on 3000"));
+}
 module.exports = { io, onlineUsers };

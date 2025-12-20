@@ -8,12 +8,44 @@ jest.mock('../../../src/models/ClassProfile');
 jest.mock('../../../src/models/Class');
 
 describe('SearchUsersForClassInviteService', () => {
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
   it('should return users with isAlreadyInClass flag', async () => {
+    // Class exists
     Class.findById.mockResolvedValue({ _id: 'class1' });
-    ClassProfile.find.mockResolvedValue([{ userId: '1' }]);
-    User.find.mockResolvedValue([{ _id: '1', username: 'a', first_name: 'A', last_name: 'B', role: 'Student' }]);
+
+    // Class members
+    ClassProfile.find.mockReturnValue({
+      select: jest.fn().mockResolvedValue([
+        { userId: '1' },
+      ]),
+    });
+
+    User.find.mockReturnValue({
+      select: jest.fn().mockResolvedValue([
+        {
+          _id: '1',
+          username: 'a',
+          first_name: 'A',
+          last_name: 'B',
+          role: 'Student',
+        },
+      ]),
+    });
 
     const result = await classService.searchUsers('class1', 'a');
-    expect(result[0].isAlreadyInClass).toBe(true);
+
+    expect(result).toEqual([
+      {
+        _id: '1',
+        username: 'a',
+        first_name: 'A',
+        last_name: 'B',
+        role: 'Student',
+        isAlreadyInClass: true,
+      },
+    ]);
   });
 });
