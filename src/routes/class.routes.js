@@ -11,13 +11,21 @@ router.post('/create',
     classController.createClass);
 
 // GET /api/classes
+router.get('/:userId', 
+    authenticate, 
+    classController.getClasses);
+    
 router.get('/:classId/class-code', 
     authenticate, 
-    authorize('Instructor'), 
+    authorize('Instructor'),
     authorizeClassRole('admin'), 
     classController.getClassCode);
 
 // /api/classes/:id/sections
 router.use('/', sectionRoutes);
+
+router.get('/:classId/search-users',
+    authenticate,
+    classController.searchUsers);
 
 module.exports = router;
