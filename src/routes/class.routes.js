@@ -10,6 +10,12 @@ router.post('/create',
     authorize('Instructor'), 
     classController.createClass);
 
+router.post('/:classId/invite', 
+    authenticate, 
+    authorize('Instructor'),
+    authorizeClassRole('admin'),
+    classController.inviteUser);
+
 // GET /api/classes
 router.get('/:userId', 
     authenticate, 

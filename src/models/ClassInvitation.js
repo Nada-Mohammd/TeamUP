@@ -38,4 +38,5 @@ classInvitationSchema.index(
   { unique: true, partialFilterExpression: { status: 'pending' } }
 );
 
+
 module.exports = model('ClassInvitation', classInvitationSchema);

@@ -73,27 +73,28 @@ const searchUsers = async (req, res) => {
   }
 };
 
-// const inviteUser = async (req, res) => {
-//   try {
-//     const { classId } = req.params;
-//     const senderId = req.user.id;
-//     const { userId, role } = req.body;
+// POST /api/classes/:classId/invite
+const inviteUser = async (req, res) => {
+  try {
+    const { classId } = req.params;
+    const senderId = req.user.id;
+    const { userId } = req.body;
 
-//     const invite = await classInviteService.inviteUser(
-//       classId,
-//       senderId,
-//       userId,
-//       role
-//     );
+    const invitation = await classService.createInvitation(
+      { classId, senderId, receiverId: userId },
+      req.io // pass io
+    );
 
-//     res.status(201).json({
-//       success: true,
-//       message: 'Invitation sent',
-//       data: invite,
-//     });
-//   } catch (err) {
-//     res.status(400).json({ success: false, message: err.message });
-//   }
-// };
+    res.status(201).json({
+      success: true,
+      message: 'Invitation sent successfully',
+      data: invitation,
+    });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
 
-module.exports = { getClasses, createClass, getClassCode, searchUsers };
+
+
+module.exports = { getClasses, createClass, getClassCode, searchUsers, inviteUser };
