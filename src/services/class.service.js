@@ -22,9 +22,12 @@ const createClass = async (instructorId, classData) => {
   }
 
   // Step 2: Validate input fields
-  const { course_name, course_code, year, course_plan, class_color } = classData;
+  const { course_name, course_code, year, course_plan, class_color } =
+    classData;
   if (!course_name || !course_code || !year || !class_color) {
-    throw new Error("Missing required fields: course name, course code, year, class color.");
+    throw new Error(
+      "Missing required fields: course name, course code, year, class color."
+    );
   }
 
   const existingCourse = await Class.findOne({ course_code });
@@ -89,7 +92,8 @@ const editClass = async (classId, instructorId, updateData) => {
   }
 
   // Step 4: Extract and validate update fields
-  const { course_name, course_code, year, course_plan, class_color } = updateData;
+  const { course_name, course_code, year, course_plan, class_color } =
+    updateData;
 
   if (!course_name?.trim()) {
     throw new Error("Course name cannot be empty.");
@@ -361,9 +365,7 @@ const respondToInvitation = async (invitationId, receiverId, action) => {
     });
 
     // Step 4: Fetch receiver for message
-    const receiver = await User.findById(receiverId).select(
-      "first_name last_name"
-    );
+    const receiver = await User.findById(receiverId);
 
     const senderNotification = await Notification.create({
       userId: invitation.senderId,
@@ -389,10 +391,12 @@ const respondToInvitation = async (invitationId, receiverId, action) => {
     invitation.status = "rejected";
     await invitation.save();
 
-    // Step 4: Fetch receiver for message
-    const receiver = await User.findById(receiverId).select(
-      "first_name last_name"
-    );
+    const classDoc = await Class.findById(invitation.classId);
+    if (!classDoc) {
+      throw new Error("The class no longer exists.");
+    }
+
+    const receiver = await User.findById(receiverId);
 
     const senderNotification = await Notification.create({
       userId: invitation.senderId,
@@ -402,7 +406,6 @@ const respondToInvitation = async (invitationId, receiverId, action) => {
       calendar_events: [],
     });
 
-    // Step 5: Emit real-time notification if sender is online
     if (io && onlineUsers) {
       const senderSocketId = onlineUsers.get(invitation.senderId.toString());
       if (senderSocketId) {
