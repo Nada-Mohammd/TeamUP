@@ -1,8 +1,7 @@
-const { get } = require('mongoose');
-const Class = require('../models/Class');
-const ClassProfile = require('../models/ClassProfile');
-
-const classService = require('../services/class.service');
+const { get } = require("mongoose");
+const Class = require("../models/Class");
+const ClassProfile = require("../models/ClassProfile");
+const classService = require("../services/class.service");
 
 // GET api/classes/:userId
 const getClasses = async (req, res) => {
@@ -31,8 +30,54 @@ const createClass = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: 'Class created successfully',
+      message: "Class created successfully",
       data: newClass,
+    });
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
+
+// PATCH api/classes/edit/classId
+const editClass = async (req, res) => {
+  try {
+    const classId = req.params.classId;
+    const instructorId = req.user.id; // from authenticated session/token
+    const updateData = req.body;
+
+    const updatedClass = await classService.editClass(
+      classId,
+      instructorId,
+      updateData
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Class updated successfully",
+      data: updatedClass,
+    });
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
+
+// DELETE api/classes/delete/:id
+const deleteClass = async (req, res) => {
+  try {
+    const classId = req.params.classId;
+    const instructorId = req.user.id;
+
+    const deletedClass = await classService.deleteClass(classId, instructorId);
+
+    res.status(200).json({
+      success: true,
+      message: `Class '${deletedClass.course_name}' has been deleted.`,
     });
   } catch (err) {
     res.status(400).json({
@@ -62,10 +107,7 @@ const searchUsers = async (req, res) => {
     const { classId } = req.params;
     const { username } = req.query;
 
-    const users = await classService.searchUsers(
-      classId,
-      username
-    );
+    const users = await classService.searchUsers(classId, username);
 
     res.status(200).json({ success: true, data: users });
   } catch (err) {
@@ -87,7 +129,7 @@ const inviteUser = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: 'Invitation sent successfully',
+      message: "Invitation sent successfully",
       data: invitation,
     });
   } catch (error) {
@@ -95,6 +137,12 @@ const inviteUser = async (req, res) => {
   }
 };
 
-
-
-module.exports = { getClasses, createClass, getClassCode, searchUsers, inviteUser };
+module.exports = {
+  getClasses,
+  createClass,
+  editClass,
+  deleteClass,
+  getClassCode,
+  searchUsers,
+  inviteUser,
+};

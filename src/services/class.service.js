@@ -59,6 +59,120 @@ const createClass = async (instructorId, classData) => {
   return newClass;
 };
 
+const editClass = async (classId, instructorId, updateData) => {
+  // Step 1: Find the class
+  const classDoc = await Class.findById(classId);
+  if (!classDoc) {
+    throw new Error("Class not found.");
+  }
+
+  // Step 2: Verify the user is an Instructor (optional but safe)
+  const user = await User.findById(instructorId);
+  if (!user || user.role !== "Instructor") {
+    throw new Error("Only instructors can edit classes.");
+  }
+
+  // Step 3: Verify the instructor is an admin in this class via ClassProfile
+  const clsProfile = await ClassProfile.findOne({
+    classId: classDoc._id,
+    userId: instructorId,
+    classRole: "admin",
+  });
+  if (!clsProfile) {
+    throw new Error("You do not have permission to edit this class.");
+  }
+
+  // Step 4: Extract and validate update fields
+  const { course_name, course_code, year, course_plan } = updateData;
+
+  if (!course_name?.trim()) {
+    throw new Error("Course name cannot be empty.");
+  }
+  if (!course_code?.trim()) {
+    throw new Error("Course code cannot be empty.");
+  }
+  if (year == null || year < 2000 || year > 2100) {
+    throw new Error("Valid academic year is required (2000–2100).");
+  }
+
+  // Step 5: Optional – Prevent duplicate class (same name)
+  const duplicateCourseName = await Class.findOne({
+    course_name: course_name,
+    _id: { $ne: classId }, // exclude current class
+  });
+  if (duplicateCourseName) {
+    throw new Error("A class with this name already exists.");
+  }
+
+  //Prevent duplicate class (same Code)
+  const duplicateCourseCode = await Class.findOne({
+    course_code: course_code,
+    _id: { $ne: classId }, // exclude current class
+  });
+  if (duplicateCourseCode) {
+    throw new Error("A class with this code already exists.");
+  }
+
+  // Step 6: Apply updates
+  classDoc.course_name = course_name;
+  classDoc.course_code = course_code;
+  classDoc.year = year;
+  classDoc.course_plan = course_plan || "";
+
+  // Step 7: Save and return
+  const updated = await classDoc.save();
+
+  // Optionally exclude sensitive fields in response
+  return {
+    course_name: updated.course_name,
+    course_code: updated.course_code,
+    year: updated.year,
+    course_plan: updated.course_plan,
+    class_code: updated.class_code,
+    createdAt: updated.createdAt,
+    updatedAt: updated.updatedAt,
+  };
+};
+
+const deleteClass = async (classId, instructorId) => {
+  // Step 1: Find the class
+  const classDoc = await Class.findById(classId);
+  if (!classDoc) {
+    throw new Error("Class not found.");
+  }
+
+  // Step 2: Verify the user is an Instructor
+  const user = await User.findById(instructorId);
+  if (!user || user.role !== "Instructor") {
+    throw new Error("Only instructors can delete classes.");
+  }
+
+  // Step 3: Verify the instructor is an admin in this class
+  const clsProfile = await ClassProfile.findOne({
+    classId: classDoc._id,
+    userId: instructorId,
+    classRole: "admin",
+  });
+  if (!clsProfile) {
+    throw new Error("You do not have permission to delete this class.");
+  }
+
+  // Step 4: Delete all related data (adjust based on your actual models)
+  // ⚠️ You MUST delete dependent documents to avoid orphaned data
+
+  // Example: Delete all ClassProfiles (roster)
+  await ClassProfile.deleteMany({ classId: classDoc._id });
+
+  // Step 5: Delete the class itself
+  await Class.findByIdAndDelete(classId);
+
+  // Step 6: Return minimal class info for success message
+  return {
+    _id: classDoc._id,
+    course_name: classDoc.course_name,
+  };
+};
+
 const getClassCode = async (classId, userId) => {
   const membership = await ClassProfile.findOne({ classId, userId });
 
@@ -158,6 +272,8 @@ const createInvitation = async ({ classId, senderId, receiverId }, io) => {
 module.exports = {
   getClasses,
   createClass,
+  editClass,
+  deleteClass,
   getClassCode,
   searchUsers,
   createInvitation,
