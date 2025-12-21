@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 const { Schema, model } = mongoose;
 
 const calendarEventSchema = new Schema(
@@ -15,7 +15,7 @@ const notificationSchema = new Schema(
   {
     userId: {
       type: Schema.Types.ObjectId,
-      ref: 'User',
+      ref: "User",
       required: true,
       index: true,
     },
@@ -24,9 +24,10 @@ const notificationSchema = new Schema(
       type: String,
       required: true,
       enum: [
-        'CLASS_INVITATION',
-        'MESSAGE',
-        'ANNOUNCEMENT',
+        "CLASS_INVITATION",
+        "MESSAGE",
+        "ANNOUNCEMENT",
+        "INVITATION_STATUS",
       ],
       index: true,
     },
@@ -57,4 +58,4 @@ const notificationSchema = new Schema(
   { timestamps: true }
 );
 
-module.exports = model('Notification', notificationSchema);
+module.exports = model("Notification", notificationSchema);

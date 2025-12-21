@@ -4,7 +4,7 @@ const User = require("../models/User");
 const ClassInvitation = require("../models/ClassInvitation");
 const Notification = require("../models/Notification");
 const generateClassCode = require("../utils/ClassUtils/classCodeGeneration");
-const { onlineUsers } = require("../sockets/socket");
+const { onlineUsers, io } = require("../sockets/socket");
 
 const getClasses = async (userId) => {
   // Find all class profiles for the user
@@ -233,6 +233,42 @@ const searchUsers = async (classId, username) => {
   return result;
 };
 
+const joinClassByCode = async (cls_code, userId) => {
+  // Step 1: Validate input
+  if (!cls_code?.trim()) {
+    throw new Error("Please enter a workspace code.");
+  }
+
+  // Step 2: Find class by class_code
+  const classDoc = await Class.findOne({ class_code: cls_code });
+  if (!classDoc) {
+    throw new Error("Invalid class code. Please check the code and try again.");
+  }
+
+  // Step 3: Check if user is already a member
+  const existingMembership = await ClassProfile.findOne({
+    classId: classDoc._id,
+    userId: userId,
+  });
+  if (existingMembership) {
+    throw new Error("You are already a member of this workspace.");
+  }
+
+  // Step 4: Add user as 'member' to the class
+  await ClassProfile.create({
+    classId: classDoc._id,
+    userId: userId,
+    classRole: "member", // ← all joiners via code are members (not admins)
+  });
+
+  // Step 5: Return class info for success message
+  return {
+    _id: classDoc._id,
+    course_name: classDoc.course_name,
+    course_code: classDoc.course_code,
+  };
+};
+
 const createInvitation = async ({ classId, senderId, receiverId }, io) => {
   const classObj = await Class.findById(classId);
   if (!classObj) throw new Error("Class not found");
@@ -280,6 +316,104 @@ const createInvitation = async ({ classId, senderId, receiverId }, io) => {
   return invitation;
 };
 
+const respondToInvitation = async (invitationId, receiverId, action) => {
+  // Step 1: Fetch invitation
+  const invitation = await ClassInvitation.findById(invitationId);
+  if (!invitation) {
+    throw new Error("Invitation not found.");
+  }
+
+  // Step 2: Authorization & validation
+  if (invitation.receiverId.toString() !== receiverId) {
+    throw new Error("You are not authorized to respond to this invitation.");
+  }
+
+  if (invitation.status !== "pending") {
+    throw new Error("This invitation is no longer active.");
+  }
+
+  // Step 3: Handle action
+  if (action === "accept") {
+    // Verify class still exists
+    const classDoc = await Class.findById(invitation.classId);
+    if (!classDoc) {
+      throw new Error("The class no longer exists.");
+    }
+
+    // Ensure not already a member
+    const existingMembership = await ClassProfile.findOne({
+      classId: invitation.classId,
+      userId: receiverId,
+    });
+    if (existingMembership) {
+      throw new Error("You are already a member of this class.");
+    }
+
+    // Update status
+    invitation.status = "accepted";
+    await invitation.save();
+
+    // Add to class
+    await ClassProfile.create({
+      classId: invitation.classId,
+      userId: receiverId,
+      classRole: "member",
+    });
+
+    // Step 4: Fetch receiver for message
+    const receiver = await User.findById(receiverId).select(
+      "first_name last_name"
+    );
+
+    const senderNotification = await Notification.create({
+      userId: invitation.senderId,
+      type: "INVITATION_STATUS",
+      referenceId: invitation._id,
+      message: `${receiver.first_name} ${receiver.last_name} has accepted your invitation to join ${classDoc.course_name}.`,
+      calendar_events: [],
+    });
+
+    // Step 5: Emit real-time notification if sender is online
+    if (io && onlineUsers) {
+      const senderSocketId = onlineUsers.get(invitation.senderId.toString());
+      if (senderSocketId) {
+        io.to(senderSocketId).emit("newNotification", senderNotification);
+      }
+    }
+
+    return {
+      classId: invitation.classId,
+      className: classDoc.course_name,
+    };
+  } else if (action === "decline") {
+    invitation.status = "rejected";
+    await invitation.save();
+
+    // Step 4: Fetch receiver for message
+    const receiver = await User.findById(receiverId).select(
+      "first_name last_name"
+    );
+
+    const senderNotification = await Notification.create({
+      userId: invitation.senderId,
+      type: "INVITATION_STATUS",
+      referenceId: invitation._id,
+      message: `${receiver.first_name} ${receiver.last_name} has declined your invitation to join ${classDoc.course_name}.`,
+      calendar_events: [],
+    });
+
+    // Step 5: Emit real-time notification if sender is online
+    if (io && onlineUsers) {
+      const senderSocketId = onlineUsers.get(invitation.senderId.toString());
+      if (senderSocketId) {
+        io.to(senderSocketId).emit("newNotification", senderNotification);
+      }
+    }
+
+    return { success: true };
+  }
+};
+
 module.exports = {
   getClasses,
   createClass,
@@ -288,4 +422,6 @@ module.exports = {
   getClassCode,
   searchUsers,
   createInvitation,
+  joinClassByCode,
+  respondToInvitation,
 };
