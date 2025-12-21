@@ -15,6 +15,7 @@ const classSchema = new Schema(
       required: [true, 'Course code (e.g., DS342) is required.'],
       trim: true,
       uppercase: true,
+      unique: true,
       match: [/^[A-Z]{2,4}\d{3,4}$/, 'Course code must be in format like DS342 or CS1010.'],
     },
     class_code: {

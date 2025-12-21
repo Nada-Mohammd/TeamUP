@@ -27,6 +27,11 @@ const createClass = async (instructorId, classData) => {
     throw new Error("Missing required fields: course name, course code, year, class color.");
   }
 
+  const existingCourse = await Class.findOne({ course_code });
+  if (existingCourse) {
+    throw new Error("A class with this course code already exists.");
+  }
+
   // Step 3: Generate unique class code
 
   let class_code;
