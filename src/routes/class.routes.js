@@ -59,6 +59,14 @@ router.delete(
   classController.deleteClass
 );
 
+router.post("/join", authenticate, classController.joinClassByCode);
+
+router.patch(
+  "/invitations/:invitationId",
+  authenticate,
+  classController.respondToInvitation
+);
+
 // /api/classes/:id/sections
 router.use("/", sectionRoutes);
 

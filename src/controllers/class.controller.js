@@ -115,6 +115,31 @@ const searchUsers = async (req, res) => {
   }
 };
 
+// POST /api/classes/join
+const joinClassByCode = async (req, res) => {
+  try {
+    const { class_code } = req.body;
+    const userId = req.user.id;
+
+    const joinedClass = await classService.joinClassByCode(class_code, userId);
+
+    res.status(200).json({
+      success: true,
+      message: `Welcome to ${joinedClass.course_name}!`,
+      data: {
+        classId: joinedClass._id,
+        course_name: joinedClass.course_name,
+        course_code: joinedClass.course_code,
+      },
+    });
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
+
 // POST /api/classes/:classId/invite
 const inviteUser = async (req, res) => {
   try {
@@ -137,6 +162,50 @@ const inviteUser = async (req, res) => {
   }
 };
 
+// PATCH /api/invitations/:invitationId
+const respondToInvitation = async (req, res) => {
+  try {
+    const { invitationId } = req.params;
+    const { action } = req.body; // 'accept' or 'decline'
+    const userId = req.user.id;
+
+    if (action !== "accept" && action !== "decline") {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid action. Use "accept" or "decline".',
+      });
+    }
+
+    const result = await classService.respondToInvitation(
+      invitationId,
+      userId,
+      action,
+      req.io
+    );
+
+    if (action === "accept") {
+      res.status(200).json({
+        success: true,
+        message: `You have joined ${result.className}!`,
+        data: {
+          classId: result.classId,
+          course_name: result.className,
+        },
+      });
+    } else {
+      res.status(200).json({
+        success: true,
+        message: "Invitation declined.",
+      });
+    }
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
+
 module.exports = {
   getClasses,
   createClass,
@@ -145,4 +214,6 @@ module.exports = {
   getClassCode,
   searchUsers,
   inviteUser,
+  joinClassByCode,
+  respondToInvitation,
 };
