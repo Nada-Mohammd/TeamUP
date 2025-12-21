@@ -35,6 +35,11 @@ const classSchema = new Schema(
       type: String,
       trim: true,
     },
+    class_color: {
+      type: String,
+      required: true,
+      match: [/^#([0-9A-Fa-f]{6})$/, 'Class color must be a valid hex color.'],
+    },
     createdBy: {
       type: Schema.Types.ObjectId,
       ref: 'User',

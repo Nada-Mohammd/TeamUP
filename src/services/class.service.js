@@ -22,9 +22,9 @@ const createClass = async (instructorId, classData) => {
   }
 
   // Step 2: Validate input fields
-  const { course_name, course_code, year, course_plan } = classData;
-  if (!course_name || !course_code || !year) {
-    throw new Error("Missing required fields: course name, course code, year.");
+  const { course_name, course_code, year, course_plan, class_color } = classData;
+  if (!course_name || !course_code || !year || !class_color) {
+    throw new Error("Missing required fields: course name, course code, year, class color.");
   }
 
   // Step 3: Generate unique class code
@@ -44,6 +44,7 @@ const createClass = async (instructorId, classData) => {
     course_name,
     course_code,
     year,
+    class_color,
     course_plan: course_plan || "",
     createdBy: instructorId,
     class_code,
@@ -83,7 +84,7 @@ const editClass = async (classId, instructorId, updateData) => {
   }
 
   // Step 4: Extract and validate update fields
-  const { course_name, course_code, year, course_plan } = updateData;
+  const { course_name, course_code, year, course_plan, class_color } = updateData;
 
   if (!course_name?.trim()) {
     throw new Error("Course name cannot be empty.");
@@ -93,6 +94,9 @@ const editClass = async (classId, instructorId, updateData) => {
   }
   if (year == null || year < 2000 || year > 2100) {
     throw new Error("Valid academic year is required (2000–2100).");
+  }
+  if (!class_color?.match(/^#([0-9A-Fa-f]{6})$/)) {
+    throw new Error("Class color must be a valid hex color.");
   }
 
   // Step 5: Optional – Prevent duplicate class (same name)
@@ -118,6 +122,7 @@ const editClass = async (classId, instructorId, updateData) => {
   classDoc.course_code = course_code;
   classDoc.year = year;
   classDoc.course_plan = course_plan || "";
+  classDoc.class_color = class_color;
 
   // Step 7: Save and return
   const updated = await classDoc.save();
@@ -129,6 +134,7 @@ const editClass = async (classId, instructorId, updateData) => {
     year: updated.year,
     course_plan: updated.course_plan,
     class_code: updated.class_code,
+    class_color: updated.class_color,
     createdAt: updated.createdAt,
     updatedAt: updated.updatedAt,
   };
