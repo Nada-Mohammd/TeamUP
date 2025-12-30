@@ -28,6 +28,7 @@ const notificationSchema = new Schema(
         "MESSAGE",
         "ANNOUNCEMENT",
         "INVITATION_STATUS",
+        "COURSEWORK"
       ],
       index: true,
     },
