@@ -7,4 +7,29 @@ const getUserNotifications = async (userId) => {
     .populate('userId', 'first_name last_name email');
 };
 
-module.exports = { getUserNotifications };
+const createNotification = async ({
+  userId,
+  type,
+  message,
+  referenceId = null,
+  calendar_events = [],
+}) => {
+  return await Notification.create({
+    userId,
+    type,
+    message,
+    referenceId,
+    calendar_events,
+  });
+};
+
+// helper for many students
+const createBulkNotifications = async (notifications) => {
+  return await Notification.insertMany(notifications);
+};
+
+module.exports = { 
+    getUserNotifications,
+    createNotification,
+    createBulkNotifications,
+ };

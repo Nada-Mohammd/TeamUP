@@ -16,6 +16,7 @@ const router = express.Router();
 const authRoutes = require('./auth.routes');
 const classRoutes = require('./class.routes');
 const notificationRoutes = require('./notification.routes');
+const courseworks=require('./coursework.routes')
 // const workspaceRoutes = require('./workspace.routes');
 // const teamRoutes = require('./team.routes');
 // const projectRoutes = require('./project.routes');
@@ -25,6 +26,7 @@ const notificationRoutes = require('./notification.routes');
 router.use('/auth', authRoutes); 
 router.use('/classes', classRoutes);
 router.use('/notifications', notificationRoutes);
+router.use('/courseworks', courseworks);
 
 // --- COMMENTED OUT ---
 // router.use('/workspaces', workspaceRoutes);
