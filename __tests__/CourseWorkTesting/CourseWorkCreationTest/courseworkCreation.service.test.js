@@ -16,46 +16,47 @@ describe('Coursework Service', () => {
 
   describe('createCoursework', () => {
     const instructorId = 'instructorId';
+    const classId = 'classId';
     const courseworkData = {
       name: 'Assignment 1',
-      classId: 'classId',
       deadline: '2026-01-30',
       notes: 'Some notes',
       description: 'Description here',
-      files: [],
+      grade: 90,
+      team_size_min: 2,
+      team_size_max: 5,
+      include_discussion: true,
+      grading_criteria: [{ criterion: 'Quality', weight: 50 }],
+      files: [
+        { file_name: 'file1.pdf', file_url: '/uploads/file1.pdf', file_size: 1000 },
+      ],
     };
 
     it('throws error if user is not instructor', async () => {
       User.findById.mockResolvedValue({ role: 'Student' });
 
-      await expect(courseworkService.createCoursework(instructorId, courseworkData))
+      await expect(courseworkService.createCoursework(instructorId, classId, courseworkData))
         .rejects.toThrow('Only instructors can create coursework.');
+    });
+
+    it('throws error if classId is missing', async () => {
+      User.findById.mockResolvedValue({ role: 'Instructor' });
+
+      await expect(courseworkService.createCoursework(instructorId, null, courseworkData))
+        .rejects.toThrow('Class ID is required.');
     });
 
     it('throws error if required fields are missing', async () => {
       User.findById.mockResolvedValue({ role: 'Instructor' });
 
-      await expect(courseworkService.createCoursework(instructorId, { name: 'A' }))
-        .rejects.toThrow('Missing required fields.');
+      await expect(courseworkService.createCoursework(instructorId, classId, { name: '' }))
+        .rejects.toThrow('Missing required fields: name and deadline.');
     });
 
-    it('creates coursework and sends notifications', async () => {
-      // Mock instructor user
+    it('creates coursework, post, and notifications', async () => {
       User.findById.mockResolvedValue({ role: 'Instructor' });
-
-      // Mock Coursework creation
-      Coursework.create.mockResolvedValue({ 
-        _id: 'courseworkId', 
-        classId: 'classId', 
-        authorId: instructorId, 
-        name: 'Assignment 1', 
-        files: [],
-      });
-
-      // Mock Post creation
+      Coursework.create.mockResolvedValue({ _id: 'courseworkId', toObject: () => ({ _id: 'courseworkId', files: courseworkData.files }) });
       Post.create.mockResolvedValue({});
-
-      // Mock ClassProfile.find().populate()
       ClassProfile.find.mockReturnValue({
         populate: jest.fn().mockResolvedValue([
           { userId: { _id: 'student1', role: 'Student' }, classRole: 'member' },
@@ -63,38 +64,29 @@ describe('Coursework Service', () => {
           { userId: { _id: 'ta1', role: 'TA' }, classRole: 'member' }, // not a student
         ]),
       });
-
-      // Mock notificationService
       notificationService.createBulkNotifications.mockResolvedValue([]);
       notificationService.createNotification.mockResolvedValue({});
 
-      const result = await courseworkService.createCoursework(instructorId, courseworkData);
+      const result = await courseworkService.createCoursework(instructorId, classId, courseworkData);
 
-      // Check returned coursework
       expect(result._id).toBe('courseworkId');
-
-      // Post created
       expect(Post.create).toHaveBeenCalledWith(expect.objectContaining({
         type: 'COURSEWORK',
-        classId: 'classId',
+        classId,
         authorId: instructorId,
         courseworkId: 'courseworkId',
       }));
 
-      // Student notifications
       expect(notificationService.createBulkNotifications).toHaveBeenCalledWith([
         expect.objectContaining({ userId: 'student1', type: 'COURSEWORK' }),
         expect.objectContaining({ userId: 'student2', type: 'COURSEWORK' }),
       ]);
 
-      // Instructor notification
-      expect(notificationService.createNotification).toHaveBeenCalledWith(
-        expect.objectContaining({
-          userId: instructorId,
-          type: 'COURSEWORK',
-          message: expect.stringContaining('was created successfully'),
-        })
-      );
+      expect(notificationService.createNotification).toHaveBeenCalledWith(expect.objectContaining({
+        userId: instructorId,
+        type: 'COURSEWORK',
+        message: expect.stringContaining('was created successfully'),
+      }));
     });
   });
 });

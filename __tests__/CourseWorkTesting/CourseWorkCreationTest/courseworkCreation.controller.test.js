@@ -14,12 +14,17 @@ describe('Coursework Controller', () => {
     };
     req = {
       user: { _id: 'instructorId' },
+      params: { classId: 'classId' },
       body: {
         name: 'Assignment 1',
-        classId: 'classId',
         deadline: '2026-01-30',
         notes: 'Some notes',
         description: 'Description here',
+        grade: '90',
+        team_size_min: '2',
+        team_size_max: '5',
+        include_discussion: true,
+        grading_criteria: JSON.stringify([{ criterion: 'Quality', weight: 50 }]),
       },
       files: [
         { originalname: 'file1.pdf', path: '/uploads/file1.pdf', size: 1000 },
@@ -30,7 +35,7 @@ describe('Coursework Controller', () => {
     jest.clearAllMocks();
   });
 
-  it('responds with created coursework', async () => {
+  it('responds with created coursework including URLs', async () => {
     const fakeCoursework = {
       _id: 'courseworkId',
       toObject: () => ({
@@ -42,6 +47,15 @@ describe('Coursework Controller', () => {
     courseworkService.createCoursework.mockResolvedValue(fakeCoursework);
 
     await courseworkController.createCoursework(req, res);
+
+    expect(courseworkService.createCoursework).toHaveBeenCalledWith(
+      'instructorId',
+      'classId',
+      expect.objectContaining({
+        name: 'Assignment 1',
+        files: expect.any(Array),
+      })
+    );
 
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith({
