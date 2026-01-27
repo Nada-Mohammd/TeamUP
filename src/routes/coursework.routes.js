@@ -10,7 +10,7 @@ const {
 } = require("../middlewares/auth");
 
 router.post(
-  "/create",
+  '/create/:classId',
    authenticate,
    authorize('Instructor'),
    authorizeClassRole("admin"),
