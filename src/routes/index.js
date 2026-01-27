@@ -17,6 +17,7 @@ const authRoutes = require('./auth.routes');
 const classRoutes = require('./class.routes');
 const notificationRoutes = require('./notification.routes');
 const courseworks=require('./coursework.routes')
+const announcementRoutes = require('./announcement.routes');
 // const workspaceRoutes = require('./workspace.routes');
 // const teamRoutes = require('./team.routes');
 // const projectRoutes = require('./project.routes');
@@ -27,7 +28,7 @@ router.use('/auth', authRoutes);
 router.use('/classes', classRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/courseworks', courseworks);
-
+router.use('/announcements', announcementRoutes);
 // --- COMMENTED OUT ---
 // router.use('/workspaces', workspaceRoutes);
 // router.use('/teams', teamRoutes);
