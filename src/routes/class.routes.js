@@ -67,6 +67,12 @@ router.patch(
   classController.respondToInvitation
 );
 
+router.get(
+  "/:classId/count-members",
+  authenticate,
+  classController.getClassMemberCount
+);
+
 // /api/classes/:id/sections
 router.use("/", sectionRoutes);
 

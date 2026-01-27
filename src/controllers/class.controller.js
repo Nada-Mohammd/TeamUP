@@ -206,6 +206,29 @@ const respondToInvitation = async (req, res) => {
   }
 };
 
+// GET /api/classes/:classId/members/count
+const getClassMemberCount = async (req, res) => {
+  try {
+    const { classId } = req.params;
+    const userId = req.user.id; // for authz (optional)
+
+    const memberCount = await classService.getClassMemberCount(classId);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        classId,
+        memberCount,
+      },
+    });
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
+
 module.exports = {
   getClasses,
   createClass,
@@ -216,4 +239,5 @@ module.exports = {
   inviteUser,
   joinClassByCode,
   respondToInvitation,
+  getClassMemberCount,
 };

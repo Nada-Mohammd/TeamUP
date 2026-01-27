@@ -417,6 +417,18 @@ const respondToInvitation = async (invitationId, receiverId, action) => {
   }
 };
 
+// Main function: Get total member count
+const getClassMemberCount = async (classId) => {
+  // Optional: Validate class exists
+  const classExists = await Class.findById(classId);
+  if (!classExists) {
+    throw new Error("Class not found.");
+  }
+
+  const count = await ClassProfile.countDocuments({ classId });
+  return count;
+};
+
 module.exports = {
   getClasses,
   createClass,
@@ -427,4 +439,5 @@ module.exports = {
   createInvitation,
   joinClassByCode,
   respondToInvitation,
+  getClassMemberCount,
 };
