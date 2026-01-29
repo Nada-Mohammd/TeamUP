@@ -98,6 +98,19 @@ const createCoursework = async (instructorId, classId, data) => {
   return coursework;
 };
 
+const getCourseworkById = async (courseworkId) => {
+  const coursework = await Coursework.findById(courseworkId);
+
+  if (!coursework || coursework.isDeleted) {
+    const error = new Error("Coursework not found");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  return coursework;
+};
+
 module.exports = {
   createCoursework,
+  getCourseworkById
 };

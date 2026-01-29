@@ -18,5 +18,11 @@ router.post(
     courseworkController.createCoursework
 );
 
+router.get(
+  '/:courseworkId',
+  authenticate,
+  courseworkController.getCourseworkById
+);
+
 
 module.exports = router;

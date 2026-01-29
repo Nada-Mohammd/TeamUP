@@ -4,14 +4,17 @@ const cloudinary = require('../config/cloudinary');
 
 const storage = new CloudinaryStorage({
   cloudinary,
-  params: {
-    folder: 'courseworks',
-    resource_type: 'auto',
-    access_mode: 'public',
-    upload_preset: 'courseworks_preset', 
-    allowed_formats: ['pdf', 'doc', 'docx', 'jpg', 'png', 'jpeg'],
-  },
+  params: async (req, file) => ({
+    folder: "courseworks",
+    resource_type: "raw",
+    use_filename: true,
+    unique_filename: false,
+    public_id: file.originalname, // keeps extension
+
+    access_mode: "public",
+  }),
 });
+
 
 const upload = multer({
   storage,
@@ -21,6 +24,3 @@ const upload = multer({
 });
 
 module.exports = upload;
-
-
-
