@@ -5,6 +5,7 @@ const ClassInvitation = require("../models/ClassInvitation");
 const Notification = require("../models/Notification");
 const generateClassCode = require("../utils/ClassUtils/classCodeGeneration");
 const { onlineUsers, io } = require("../sockets/socket");
+const Post = require("../models/Post");
 
 const getClasses = async (userId) => {
   // Find all class profiles for the user
@@ -26,7 +27,7 @@ const createClass = async (instructorId, classData) => {
     classData;
   if (!course_name || !course_code || !year || !class_color) {
     throw new Error(
-      "Missing required fields: course name, course code, year, class color."
+      "Missing required fields: course name, course code, year, class color.",
     );
   }
 
@@ -429,6 +430,39 @@ const getClassMemberCount = async (classId) => {
   return count;
 };
 
+const getClassPosts = async (classId) => {
+  // Validate class exists
+  const classExists = await Class.findById(classId);
+  if (!classExists) {
+    throw new Error("Class not found.");
+  }
+
+  // Fetch posts with populated coursework or announcement data
+  const posts = await Post.find({
+    classId,
+    isDeleted: false,
+  })
+    .sort({ createdAt: -1 }) // newest first
+    .populate({
+      path: "courseworkId",
+      match: { isDeleted: false }, // only active coursework
+      select:
+        "name description deadline grade team_size_min team_size_max files",
+    })
+    .populate({
+      path: "authorId",
+      select: "first_name last_name role",
+    });
+
+  // Filter out posts where coursework was deleted (soft-deleted)
+  return posts.filter((post) => {
+    if (post.type === "COURSEWORK") {
+      return post.courseworkId !== null; // coursework exists and is not deleted
+    }
+    return true; // announcements always valid
+  });
+};
+
 module.exports = {
   getClasses,
   createClass,
@@ -440,4 +474,5 @@ module.exports = {
   joinClassByCode,
   respondToInvitation,
   getClassMemberCount,
+  getClassPosts,
 };

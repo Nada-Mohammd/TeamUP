@@ -13,7 +13,7 @@ router.post(
   "/create",
   authenticate,
   authorize("Instructor"),
-  classController.createClass
+  classController.createClass,
 );
 
 router.post(
@@ -21,7 +21,7 @@ router.post(
   authenticate,
   authorize("Instructor"),
   authorizeClassRole("admin"),
-  classController.inviteUser
+  classController.inviteUser,
 );
 
 // GET /api/classes
@@ -32,7 +32,7 @@ router.get(
   authenticate,
   authorize("Instructor"),
   authorizeClassRole("admin"),
-  classController.getClassCode
+  classController.getClassCode,
 );
 
 router.get(
@@ -40,7 +40,7 @@ router.get(
   authenticate,
   authorize("Instructor"),
   authorizeClassRole("admin"),
-  classController.getClassCode
+  classController.getClassCode,
 );
 
 router.patch(
@@ -48,7 +48,7 @@ router.patch(
   authenticate,
   authorize("Instructor"),
   authorizeClassRole("admin"),
-  classController.editClass
+  classController.editClass,
 );
 
 router.delete(
@@ -56,7 +56,7 @@ router.delete(
   authenticate,
   authorize("Instructor"),
   authorizeClassRole("admin"),
-  classController.deleteClass
+  classController.deleteClass,
 );
 
 router.post("/join", authenticate, classController.joinClassByCode);
@@ -64,18 +64,20 @@ router.post("/join", authenticate, classController.joinClassByCode);
 router.patch(
   "/invitations/:invitationId",
   authenticate,
-  classController.respondToInvitation
+  classController.respondToInvitation,
 );
 
 router.get(
   "/:classId/count-members",
   authenticate,
-  classController.getClassMemberCount
+  classController.getClassMemberCount,
 );
 
 // /api/classes/:id/sections
 router.use("/", sectionRoutes);
 
 router.get("/:classId/search-users", authenticate, classController.searchUsers);
+
+router.get("/:classId/posts", authenticate, classController.getClassPosts);
 
 module.exports = router;

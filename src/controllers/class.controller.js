@@ -51,7 +51,7 @@ const editClass = async (req, res) => {
     const updatedClass = await classService.editClass(
       classId,
       instructorId,
-      updateData
+      updateData,
     );
 
     res.status(200).json({
@@ -149,7 +149,7 @@ const inviteUser = async (req, res) => {
 
     const invitation = await classService.createInvitation(
       { classId, senderId, receiverId: userId },
-      req.io // pass io
+      req.io, // pass io
     );
 
     res.status(201).json({
@@ -180,7 +180,7 @@ const respondToInvitation = async (req, res) => {
       invitationId,
       userId,
       action,
-      req.io
+      req.io,
     );
 
     if (action === "accept") {
@@ -229,6 +229,35 @@ const getClassMemberCount = async (req, res) => {
   }
 };
 
+// GET /api/classes/:classId/posts
+const getClassPosts = async (req, res) => {
+  try {
+    const { classId } = req.params;
+    // const userId = req.user.id;
+
+    // // Optional: Verify user is a member of the class (recommended)
+    // const isMember = await ClassProfile.findOne({ classId, userId });
+    // if (!isMember) {
+    //   return res.status(403).json({
+    //     success: false,
+    //     message: 'You are not a member of this class.',
+    //   });
+    // }
+
+    const posts = await classService.getClassPosts(classId);
+
+    res.status(200).json({
+      success: true,
+      posts,
+    });
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
+
 module.exports = {
   getClasses,
   createClass,
@@ -240,4 +269,5 @@ module.exports = {
   joinClassByCode,
   respondToInvitation,
   getClassMemberCount,
+  getClassPosts,
 };
