@@ -2,7 +2,6 @@ const courseworkService = require("../services/coursework.service");
 const Coursework = require("../models/CourseWork");
 
 // POST /api/courseworks/create/:classId
-// POST /api/courseworks/create/:classId
 const createCoursework = async (req, res) => {
   try {
     const instructorId = req.user._id;
@@ -10,7 +9,7 @@ const createCoursework = async (req, res) => {
 
     // Prepare uploaded files (Cloudinary URLs only)
     const files =
-      req.files?.map(file => ({
+      req.files?.map((file) => ({
         file_name: file.originalname,
         file_url: file.path, // direct Cloudinary URL
         file_size: file.size,
@@ -52,10 +51,16 @@ const createCoursework = async (req, res) => {
     const newCoursework = await courseworkService.createCoursework(
       instructorId,
       classId,
-      courseworkData
+      courseworkData,
     );
 
-    // ✅ Return directly (no fake URLs)
+    const courseworkWithUrls = newCoursework.toObject();
+    courseworkWithUrls.files = courseworkWithUrls.files.map((file) => ({
+      ...file,
+      view_url: `${req.protocol}://${req.get("host")}/api/courseworks/${newCoursework._id}/files/${file._id}`,
+      download_url: `${req.protocol}://${req.get("host")}/api/courseworks/${newCoursework._id}/files/${file._id}?download=true`,
+    }));
+
     res.status(201).json({
       success: true,
       message: "Coursework created successfully",
@@ -95,10 +100,116 @@ const getCourseworkById = async (req, res) => {
     });
   }
 };
+// PATCH /api/courseworks/update/:courseworkId
+const updateCoursework = async (req, res) => {
+  try {
+    const { courseworkId } = req.params;
+    const instructorId = req.user.id;
 
+    // Parse grading criteria (from form-data string)
+    let gradingCriteria = req.body.grading_criteria;
+    if (typeof gradingCriteria === "string" && gradingCriteria.trim()) {
+      gradingCriteria = JSON.parse(gradingCriteria);
+    }
+    gradingCriteria = Array.isArray(gradingCriteria) ? gradingCriteria : [];
+
+    // Parse optional numeric fields
+    const grade =
+      req.body.grade === "" || req.body.grade == null
+        ? null
+        : Number(req.body.grade);
+    const teamSizeMin =
+      req.body.team_size_min == null || req.body.team_size_min === ""
+        ? null
+        : Number(req.body.team_size_min);
+    const teamSizeMax =
+      req.body.team_size_max == null || req.body.team_size_max === ""
+        ? null
+        : Number(req.body.team_size_max);
+
+    const updateData = {
+      name: req.body.name?.trim(),
+      description: req.body.description?.trim() || "",
+      notes: req.body.notes?.trim() || "",
+      grade,
+      team_size_min: teamSizeMin,
+      team_size_max: teamSizeMax,
+      deadline: req.body.deadline,
+      discussion_date:
+        req.body.discussion_date === "" ? null : req.body.discussion_date,
+      include_discussion: req.body.include_discussion === "true",
+      grading_criteria: gradingCriteria,
+    };
+
+    // Validate required fields
+    if (!updateData.name || !updateData.deadline) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required fields: name and deadline.",
+      });
+    }
+
+    // Handle new file uploads (if any)
+    const newFiles =
+      req.files?.map((file) => ({
+        file_name: file.originalname,
+        file_url: file.path, // Cloudinary URL from multer
+        file_size: file.size,
+        uploaded_by: instructorId,
+      })) || [];
+
+    // Call service
+    const updatedCoursework = await courseworkService.updateCoursework(
+      courseworkId,
+      instructorId,
+      updateData,
+      newFiles,
+    );
+
+    // Add view/download URLs to all files (existing + new)
+    const courseworkWithUrls = updatedCoursework.toObject();
+    courseworkWithUrls.files = courseworkWithUrls.files.map((file) => ({
+      ...file,
+      view_url: `${req.protocol}://${req.get("host")}/api/courseworks/${courseworkId}/files/${file._id}`,
+      download_url: `${req.protocol}://${req.get("host")}/api/courseworks/${courseworkId}/files/${file._id}?download=true`,
+    }));
+
+    res.status(200).json({
+      success: true,
+      message: "Coursework updated successfully",
+      data: courseworkWithUrls,
+    });
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
+
+// DELETE /api/courseworks/:courseworkId
+const deleteCoursework = async (req, res) => {
+  try {
+    const { courseworkId } = req.params;
+    const instructorId = req.user._id;
+
+    await courseworkService.deleteCoursework(courseworkId, instructorId);
+
+    res.status(200).json({
+      success: true,
+      message: "Coursework deleted successfully",
+    });
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
 
 module.exports = {
   createCoursework,
   getCourseworkById,
-
+  updateCoursework,
+  deleteCoursework,
 };

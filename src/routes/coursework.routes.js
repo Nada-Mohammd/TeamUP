@@ -1,8 +1,8 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
 
-const courseworkController = require('../controllers/coursework.controller');
-const upload = require('../middlewares/upload');
+const courseworkController = require("../controllers/coursework.controller");
+const upload = require("../middlewares/upload");
 const {
   authenticate,
   authorize,
@@ -10,19 +10,33 @@ const {
 } = require("../middlewares/auth");
 
 router.post(
-  '/create/:classId',
-   authenticate,
-   authorize('Instructor'),
-   authorizeClassRole("admin"),
-    upload.array('files', 5), 
-    courseworkController.createCoursework
+  "/create/:classId",
+  authenticate,
+  authorize("Instructor"),
+  authorizeClassRole("admin"),
+  upload.array("files", 5),
+  courseworkController.createCoursework,
 );
 
 router.get(
-  '/:courseworkId',
+  "/:courseworkId",
   authenticate,
-  courseworkController.getCourseworkById
+  courseworkController.getCourseworkById,
 );
 
+router.patch(
+  "/update/:courseworkId",
+  authenticate,
+  authorize("Instructor"),
+  upload.array("files", 5),
+  courseworkController.updateCoursework,
+);
+
+router.delete(
+  "/delete/:courseworkId",
+  authenticate,
+  authorize("Instructor"),
+  courseworkController.deleteCoursework,
+);
 
 module.exports = router;
