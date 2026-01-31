@@ -8,7 +8,7 @@ const calendarEventSchema = new Schema(
     endDate: { type: Date },
     description: { type: String },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const notificationSchema = new Schema(
@@ -28,7 +28,7 @@ const notificationSchema = new Schema(
         "MESSAGE",
         "ANNOUNCEMENT",
         "INVITATION_STATUS",
-        "COURSEWORK"
+        "COURSEWORK",
       ],
       index: true,
     },
@@ -41,6 +41,16 @@ const notificationSchema = new Schema(
       type: Schema.Types.ObjectId,
       default: null,
       index: true,
+    },
+
+    courseCode: {
+      type: String,
+      default: null,
+    },
+
+    classColor: {
+      type: String,
+      default: null,
     },
 
     message: {
@@ -56,7 +66,7 @@ const notificationSchema = new Schema(
       default: [],
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 module.exports = model("Notification", notificationSchema);

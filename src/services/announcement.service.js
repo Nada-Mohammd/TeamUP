@@ -1,14 +1,15 @@
-const Post = require('../models/Post');
-const User = require('../models/User');
-const ClassProfile = require('../models/ClassProfile');
-const notificationService = require('./notification.service');
+const Post = require("../models/Post");
+const User = require("../models/User");
+const ClassProfile = require("../models/ClassProfile");
+const notificationService = require("./notification.service");
+const Class = require("../models/Class");
 
 /**
  * Build short preview for notification body
  */
 const buildPreview = (text, length = 60) => {
-  if (!text) return '';
-  return text.length > length ? text.slice(0, length) + '…' : text;
+  if (!text) return "";
+  return text.length > length ? text.slice(0, length) + "…" : text;
 };
 
 /**
@@ -16,23 +17,19 @@ const buildPreview = (text, length = 60) => {
  * CREATE ANNOUNCEMENT
  * ====================================================
  */
-const createAnnouncement = async (
-  instructorId,
-  classId,
-  announcement_text
-) => {
+const createAnnouncement = async (instructorId, classId, announcement_text) => {
   // Validate instructor
   const user = await User.findById(instructorId);
-  if (!user || user.role !== 'Instructor') {
-    throw new Error('Only instructors can create announcements.');
+  if (!user || user.role !== "Instructor") {
+    throw new Error("Only instructors can create announcements.");
   }
 
   if (!classId || !announcement_text?.trim()) {
-    throw new Error('Class ID and announcement text are required.');
+    throw new Error("Class ID and announcement text are required.");
   }
 
   const announcement = await Post.create({
-    type: 'ANNOUNCEMENT',
+    type: "ANNOUNCEMENT",
     classId,
     authorId: instructorId,
     announcement_text: announcement_text.trim(),
@@ -43,30 +40,36 @@ const createAnnouncement = async (
   // Notify students
   const classMembers = await ClassProfile.find({
     classId,
-    classRole: 'member',
-  }).populate('userId', 'role');
+    classRole: "member",
+  }).populate("userId", "role");
+
+  const classEntity = await Class.findById(classId);
 
   const studentProfiles = classMembers.filter(
-    profile => profile.userId?.role === 'Student'
+    (profile) => profile.userId?.role === "Student",
   );
 
   if (studentProfiles.length) {
     await notificationService.createBulkNotifications(
-      studentProfiles.map(profile => ({
+      studentProfiles.map((profile) => ({
         userId: profile.userId._id,
-        type: 'ANNOUNCEMENT',
+        type: "ANNOUNCEMENT",
         message: `New announcement:\n"${preview}"`,
         referenceId: announcement._id,
-      }))
+        courseCode: classEntity.course_code,
+        classColor: classEntity.class_color,
+      })),
     );
   }
 
   // Notify instructor
   await notificationService.createNotification({
     userId: instructorId,
-    type: 'ANNOUNCEMENT',
-    message: 'Your announcement was posted successfully.',
+    type: "ANNOUNCEMENT",
+    message: "Your announcement was posted successfully.",
     referenceId: announcement._id,
+    courseCode: classEntity.course_code,
+    classColor: classEntity.class_color,
   });
 
   return announcement;
@@ -80,11 +83,11 @@ const createAnnouncement = async (
 const getClassAnnouncements = async (classId) => {
   return Post.find({
     classId,
-    type: 'ANNOUNCEMENT',
+    type: "ANNOUNCEMENT",
     isDeleted: false,
   })
     .sort({ createdAt: -1 })
-    .populate('authorId', 'name');
+    .populate("authorId", "name");
 };
 
 /**
@@ -92,23 +95,27 @@ const getClassAnnouncements = async (classId) => {
  * UPDATE ANNOUNCEMENT
  * ====================================================
  */
-const updateAnnouncement = async (announcementId, instructorId, announcement_text) => {
+const updateAnnouncement = async (
+  announcementId,
+  instructorId,
+  announcement_text,
+) => {
   if (!announcement_text?.trim()) {
-    throw new Error('Announcement text is required.');
+    throw new Error("Announcement text is required.");
   }
 
   const announcement = await Post.findOne({
     _id: announcementId,
-    type: 'ANNOUNCEMENT',
+    type: "ANNOUNCEMENT",
     isDeleted: false,
   });
 
   if (!announcement) {
-    throw new Error('Announcement not found.');
+    throw new Error("Announcement not found.");
   }
 
   if (announcement.authorId.toString() !== instructorId.toString()) {
-    throw new Error('You are not allowed to update this announcement.');
+    throw new Error("You are not allowed to update this announcement.");
   }
 
   announcement.announcement_text = announcement_text.trim();
@@ -121,19 +128,23 @@ const updateAnnouncement = async (announcementId, instructorId, announcement_tex
    */
   const classMembers = await ClassProfile.find({
     classId: announcement.classId,
-    classRole: 'member',
-  }).populate('userId', 'role');
+    classRole: "member",
+  }).populate("userId", "role");
+
+  const classEntity = await Class.findById(announcement.classId);
 
   const studentProfiles = classMembers.filter(
-    profile => profile.userId?.role === 'Student'
+    (profile) => profile.userId?.role === "Student",
   );
 
   if (studentProfiles.length) {
-    const notifications = studentProfiles.map(profile => ({
+    const notifications = studentProfiles.map((profile) => ({
       userId: profile.userId._id,
-      type: 'ANNOUNCEMENT',
+      type: "ANNOUNCEMENT",
       message: `Announcement updated:\n"${preview}"`,
       referenceId: announcement._id,
+      courseCode: classEntity.course_code,
+      classColor: classEntity.class_color,
     }));
 
     await notificationService.createBulkNotifications(notifications);
@@ -144,9 +155,11 @@ const updateAnnouncement = async (announcementId, instructorId, announcement_tex
    */
   await notificationService.createNotification({
     userId: instructorId,
-    type: 'ANNOUNCEMENT',
-    message: 'Your announcement was updated successfully.',
+    type: "ANNOUNCEMENT",
+    message: "Your announcement was updated successfully.",
     referenceId: announcement._id,
+    courseCode: classEntity.course_code,
+    classColor: classEntity.class_color,
   });
 
   return announcement;
@@ -160,16 +173,16 @@ const updateAnnouncement = async (announcementId, instructorId, announcement_tex
 const deleteAnnouncement = async (announcementId, instructorId) => {
   const announcement = await Post.findOne({
     _id: announcementId,
-    type: 'ANNOUNCEMENT',
+    type: "ANNOUNCEMENT",
     isDeleted: false,
   });
 
   if (!announcement) {
-    throw new Error('Announcement not found.');
+    throw new Error("Announcement not found.");
   }
 
   if (announcement.authorId.toString() !== instructorId.toString()) {
-    throw new Error('You are not allowed to delete this announcement.');
+    throw new Error("You are not allowed to delete this announcement.");
   }
 
   announcement.isDeleted = true;
@@ -177,9 +190,11 @@ const deleteAnnouncement = async (announcementId, instructorId) => {
 
   await notificationService.createNotification({
     userId: instructorId,
-    type: 'ANNOUNCEMENT',
-    message: 'Your announcement was deleted.',
+    type: "ANNOUNCEMENT",
+    message: "Your announcement was deleted.",
     referenceId: announcement._id,
+    courseCode: classEntity.course_code,
+    classColor: classEntity.class_color,
   });
 
   return true;

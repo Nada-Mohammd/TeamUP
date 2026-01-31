@@ -1,10 +1,10 @@
 // services/notification.service.js
-const Notification = require('../models/Notification');
+const Notification = require("../models/Notification");
 
 const getUserNotifications = async (userId) => {
   return await Notification.find({ userId })
     .sort({ createdAt: -1 })
-    .populate('userId', 'first_name last_name email');
+    .populate("userId", "first_name last_name email");
 };
 
 const createNotification = async ({
@@ -12,6 +12,8 @@ const createNotification = async ({
   type,
   message,
   referenceId = null,
+  courseCode = null,
+  classColor = null,
   calendar_events = [],
 }) => {
   return await Notification.create({
@@ -19,6 +21,8 @@ const createNotification = async ({
     type,
     message,
     referenceId,
+    courseCode,
+    classColor,
     calendar_events,
   });
 };
@@ -28,8 +32,8 @@ const createBulkNotifications = async (notifications) => {
   return await Notification.insertMany(notifications);
 };
 
-module.exports = { 
-    getUserNotifications,
-    createNotification,
-    createBulkNotifications,
- };
+module.exports = {
+  getUserNotifications,
+  createNotification,
+  createBulkNotifications,
+};

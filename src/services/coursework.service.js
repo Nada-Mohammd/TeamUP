@@ -3,6 +3,7 @@ const User = require("../models/User");
 const ClassProfile = require("../models/ClassProfile");
 const notificationService = require("./notification.service");
 const Post = require("../models/Post");
+const Class = require("../models/Class");
 
 const createCoursework = async (instructorId, classId, data) => {
   const user = await User.findById(instructorId);
@@ -74,6 +75,8 @@ const createCoursework = async (instructorId, classId, data) => {
     (profile) => profile.userId?.role === "Student",
   );
 
+  const classObj = await Class.findById(classId);
+
   if (studentProfiles.length) {
     await notificationService.createBulkNotifications(
       studentProfiles.map((profile) => ({
@@ -82,6 +85,8 @@ const createCoursework = async (instructorId, classId, data) => {
         message: `New coursework "${name}" has been added. Deadline: ${new Date(
           deadline,
         ).toLocaleDateString()}`,
+        courseCode: classObj.course_code,
+        classColor: classObj.class_color,
         referenceId: coursework._id,
       })),
     );
@@ -93,6 +98,8 @@ const createCoursework = async (instructorId, classId, data) => {
     type: "COURSEWORK",
     message: `Your coursework "${name}" was created successfully.`,
     referenceId: coursework._id,
+    courseCode: classObj.course_code,
+    classColor: classObj.class_color,
   });
 
   return coursework;
@@ -182,6 +189,8 @@ const updateCoursework = async (
     });
   }
 
+  const classEntity = await Class.findById(coursework.classId);
+
   // /. Notify students in class
   const studentProfiles = await ClassProfile.find({
     classId: coursework.classId,
@@ -209,6 +218,8 @@ const updateCoursework = async (
     type: "COURSEWORK",
     message: `Your coursework "${updateData.name}" was updated successfully.`,
     referenceId: courseworkId,
+    courseCode: classEntity.course_code,
+    classColor: classEntity.class_color,
   });
 
   return updatedCoursework;
@@ -243,6 +254,8 @@ const deleteCoursework = async (courseworkId, instructorId) => {
   // 5. Soft-delete associated Post
   await Post.findOneAndUpdate({ courseworkId }, { isDeleted: true });
 
+  const classEntity = await Class.findById(coursework.classId);
+
   // 6. Notify all students in class
   const studentProfiles = await ClassProfile.find({
     classId: coursework.classId,
@@ -260,6 +273,8 @@ const deleteCoursework = async (courseworkId, instructorId) => {
         type: "COURSEWORK",
         message: `Coursework "${coursework.name}" has been removed by the instructor.`,
         referenceId: courseworkId,
+        courseCode: classEntity.course_code,
+        classColor: classEntity.class_color,
       })),
     );
   }
@@ -270,6 +285,8 @@ const deleteCoursework = async (courseworkId, instructorId) => {
     type: "COURSEWORK",
     message: `Your coursework "${coursework.name}" was deleted successfully.`,
     referenceId: courseworkId,
+    courseCode: classEntity.course_code,
+    classColor: classEntity.class_color,
   });
 };
 

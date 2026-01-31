@@ -308,6 +308,8 @@ const createInvitation = async ({ classId, senderId, receiverId }, io) => {
     type: "CLASS_INVITATION",
     referenceId: invitation._id,
     message: `${sender.first_name} ${sender.last_name} has invited you to join ${classObj.course_name}`,
+    courseCode: classObj.course_code,
+    classColor: classObj.class_color,
     calendar_events: [],
   });
 
@@ -373,6 +375,8 @@ const respondToInvitation = async (invitationId, receiverId, action) => {
       type: "INVITATION_STATUS",
       referenceId: invitation._id,
       message: `${receiver.first_name} ${receiver.last_name} has accepted your invitation to join ${classDoc.course_name}.`,
+      courseCode: classDoc.course_code,
+      classColor: classDoc.class_color,
       calendar_events: [],
     });
 
@@ -404,6 +408,8 @@ const respondToInvitation = async (invitationId, receiverId, action) => {
       type: "INVITATION_STATUS",
       referenceId: invitation._id,
       message: `${receiver.first_name} ${receiver.last_name} has declined your invitation to join ${classDoc.course_name}.`,
+      courseCode: classDoc.course_code,
+      classColor: classDoc.class_color,
       calendar_events: [],
     });
 
