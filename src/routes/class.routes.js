@@ -73,6 +73,8 @@ router.get(
   classController.getClassMemberCount,
 );
 
+router.get("/:classId/members", authenticate, classController.getClassMembers);
+
 // /api/classes/:id/sections
 router.use("/", sectionRoutes);
 

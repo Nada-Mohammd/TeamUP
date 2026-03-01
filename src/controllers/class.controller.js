@@ -229,6 +229,26 @@ const getClassMemberCount = async (req, res) => {
   }
 };
 
+// GET /api/classes/:classId/members
+const getClassMembers = async (req, res) => {
+  try {
+    const { classId } = req.params;
+    const userId = req.user.id;
+
+    const members = await classService.getClassMembers(classId, userId);
+
+    res.status(200).json({
+      success: true,
+      data: members,
+    });
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
+
 // GET /api/classes/:classId/posts
 const getClassPosts = async (req, res) => {
   try {
@@ -269,5 +289,6 @@ module.exports = {
   joinClassByCode,
   respondToInvitation,
   getClassMemberCount,
+  getClassMembers,
   getClassPosts,
 };

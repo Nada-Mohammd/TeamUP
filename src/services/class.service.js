@@ -1,7 +1,7 @@
 const Class = require("../models/Class");
 const ClassProfile = require("../models/ClassProfile");
 const User = require("../models/User");
-const ClassInvitation = require("../models/ClassInvitation"); 
+const ClassInvitation = require("../models/ClassInvitation");
 const Notification = require("../models/Notification");
 const generateClassCode = require("../utils/ClassUtils/classCodeGeneration");
 const { onlineUsers, io } = require("../sockets/socket");
@@ -436,6 +436,50 @@ const getClassMemberCount = async (classId) => {
   return count;
 };
 
+const getClassMembers = async (classId, requesterId) => {
+  const classExists = await Class.findById(classId);
+  if (!classExists) {
+    throw new Error("Class not found.");
+  }
+
+  const requesterMembership = await ClassProfile.findOne({
+    classId,
+    userId: requesterId,
+  });
+
+  if (!requesterMembership) {
+    throw new Error("You are not a member of this class.");
+  }
+
+  const classProfiles = await ClassProfile.find({ classId })
+    .populate({
+      path: "userId",
+      select: "first_name last_name username email role",
+    })
+    .sort({ joined_date: 1 });
+
+  const members = classProfiles
+    .filter((profile) => profile.userId)
+    .map((profile) => ({
+      _id: profile.userId._id,
+      first_name: profile.userId.first_name,
+      last_name: profile.userId.last_name,
+      username: profile.userId.username,
+      email: profile.userId.email,
+      role: profile.userId.role,
+      classRole: profile.classRole,
+      joined_date: profile.joined_date,
+    }));
+
+  const instructors = members.filter((member) => member.role === "Instructor");
+  const students = members.filter((member) => member.role === "Student");
+
+  return {
+    instructors,
+    students,
+  };
+};
+
 const getClassPosts = async (classId) => {
   // Validate class exists
   const classExists = await Class.findById(classId);
@@ -480,5 +524,6 @@ module.exports = {
   joinClassByCode,
   respondToInvitation,
   getClassMemberCount,
+  getClassMembers,
   getClassPosts,
 };
