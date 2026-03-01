@@ -1,7 +1,7 @@
 const Class = require("../models/Class");
 const ClassProfile = require("../models/ClassProfile");
 const User = require("../models/User");
-const ClassInvitation = require("../models/ClassInvitation");
+const ClassInvitation = require("../models/ClassInvitation"); 
 const Notification = require("../models/Notification");
 const generateClassCode = require("../utils/ClassUtils/classCodeGeneration");
 const { onlineUsers, io } = require("../sockets/socket");
