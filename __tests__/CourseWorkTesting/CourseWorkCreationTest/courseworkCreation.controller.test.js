@@ -15,19 +15,19 @@ describe('Coursework Controller', () => {
 
     req = {
       user: { _id: 'instructorId' },
-      params: { classId: 'classId' },
+      params: { classId: '69786145f373bb543a5da1b5' },
       body: {
         name: 'Assignment 1',
         deadline: '2026-01-30',
         notes: 'Some notes',
         description: 'Description here',
-        grade: '90',
-        team_size_min: '2',
-        team_size_max: '5',
+        grade: 90,          
+        team_size_min: 2,   
+        team_size_max: 5,  
         include_discussion: true,
-        grading_criteria: JSON.stringify([
-          { criterion: 'Quality', points: 50 },
-        ]),
+        grading_criteria: [ 
+          { criterion: 'Quality', points: 50 }
+        ],
       },
       files: [
         {
@@ -45,7 +45,6 @@ describe('Coursework Controller', () => {
   });
 
   it('creates coursework successfully', async () => {
-    // Mock the service to return a plain coursework object
     const fakeCoursework = {
       _id: 'courseworkId',
       name: 'Assignment 1',
@@ -58,27 +57,35 @@ describe('Coursework Controller', () => {
           uploaded_by: 'instructorId',
         },
       ],
+      toObject: function() { return this; },
     };
 
     courseworkService.createCoursework.mockResolvedValue(fakeCoursework);
 
     await courseworkController.createCoursework(req, res);
 
-    // Service call assertion
+    // Verify service was called with correct data types
     expect(courseworkService.createCoursework).toHaveBeenCalledWith(
       'instructorId',
-      'classId',
+      '69786145f373bb543a5da1b5',
       expect.objectContaining({
         name: 'Assignment 1',
-        grade: 90,
-        team_size_min: 2,
-        team_size_max: 5,
-        grading_criteria: expect.any(Array),
-        files: expect.any(Array),
+        grade: 90,              
+        team_size_min: 2,       
+        team_size_max: 5,      
+        grading_criteria: expect.arrayContaining([
+          expect.objectContaining({ criterion: 'Quality', points: 50 })
+        ]),
+        files: expect.arrayContaining([
+          expect.objectContaining({
+            file_name: 'file1.pdf',
+            file_url: 'https://cloudinary.com/file1.pdf',
+          })
+        ]),
       })
     );
 
-    // Controller response assertion
+   
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith({
       success: true,
@@ -99,7 +106,7 @@ describe('Coursework Controller', () => {
 
   it('returns 400 if service throws an error', async () => {
     courseworkService.createCoursework.mockRejectedValue(
-      new Error('Error creating coursework')
+      new Error('Database error')
     );
 
     await courseworkController.createCoursework(req, res);
@@ -107,7 +114,7 @@ describe('Coursework Controller', () => {
     expect(res.status).toHaveBeenCalledWith(400);
     expect(res.json).toHaveBeenCalledWith({
       success: false,
-      message: 'Error creating coursework',
+      message: 'Database error',
     });
   });
 });
