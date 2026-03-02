@@ -82,10 +82,10 @@ const createTeam = async (userId, teamData) => {
 
 //Lock Team
 const lockTeam = async (teamId, userId) => {
+  // Find team
   const team = await Team.findById(teamId);
-
   if (!team) {
-    throw new Error('Team not found');
+    throw { message: 'Team not found.', statusCode: 404 };
   }
 
   // Check if user is LEADER
@@ -94,9 +94,24 @@ const lockTeam = async (teamId, userId) => {
     studentId: userId,
     role: 'LEADER',
   });
-
   if (!leader) {
-    throw new Error('Only leader can lock the team');
+    throw { message: 'Only the team leader can lock the team.', statusCode: 403 };
+  }
+
+  // Get coursework to check minTeamSize
+  const coursework = await Coursework.findById(team.courseworkId);
+  if (!coursework) {
+    throw { message: 'Coursework not found.', statusCode: 404 };
+  }
+
+  // Count current team members
+  const memberCount = await TeamMember.countDocuments({ teamId });
+
+  if (memberCount < coursework.team_size_min) {
+    throw {
+      message: `Team must have at least ${coursework.team_size_min} members to be locked. Current members: ${memberCount}.`,
+      statusCode: 400,
+    };
   }
 
   team.isLocked = true;

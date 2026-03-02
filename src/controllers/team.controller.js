@@ -27,24 +27,21 @@ const createTeam = async (req, res) => {
 const lockTeam = async (req, res) => {
   try {
     const { teamId } = req.params;
-    const userId = req.user.id; // from auth middleware
+    const userId = req.user.id;
 
     const updatedTeam = await teamService.lockTeam(teamId, userId);
 
     return res.status(200).json({
-      message: 'Team locked successfully',
+      success: true,
+      message: 'Team locked successfully.',
       team: updatedTeam,
     });
-  } catch (error) {
-    if (error.message === 'Team not found') {
-      return res.status(404).json({ message: 'Team not found' });
-    }
-
-    if (error.message === 'Only leader can lock the team') {
-      return res.status(403).json({ message: error.message });
-    }
-
-    return res.status(500).json({ message: error.message });
+  } catch (err) {
+    const status = err.statusCode || 500;
+    return res.status(status).json({
+      success: false,
+      message: err.message || 'Internal Server Error',
+    });
   }
 };
 
