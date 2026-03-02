@@ -3,7 +3,7 @@ const teamService = require("../services/team.service");
 // POST /api/teams/create
 const createTeam = async (req, res) => {
   try {
-    const userId = req.user.id; 
+    const userId = req.user.id;
     const teamData = req.body;
 
     const newTeam = await teamService.createTeam(userId, teamData);
@@ -33,14 +33,38 @@ const lockTeam = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Team locked successfully.',
+      message: "Team locked successfully.",
       team: updatedTeam,
     });
   } catch (err) {
     const status = err.statusCode || 500;
     return res.status(status).json({
       success: false,
-      message: err.message || 'Internal Server Error',
+      message: err.message || "Internal Server Error",
+    });
+  }
+};
+
+// GET /api/classes/:classId/courseworks/:courseworkId/teams?locked=false
+const getCourseworkTeams = async (req, res) => {
+  try {
+    const { classId, courseworkId } = req.params;
+    const { locked } = req.query;
+
+    const teams = await teamService.getCourseworkTeams(
+      classId,
+      courseworkId,
+      locked,
+    );
+
+    res.status(200).json({
+      success: true,
+      data: teams,
+    });
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      message: err.message,
     });
   }
 };
@@ -48,4 +72,5 @@ const lockTeam = async (req, res) => {
 module.exports = {
   createTeam,
   lockTeam,
+  getCourseworkTeams,
 };

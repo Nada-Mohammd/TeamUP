@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 
 const classController = require("../controllers/class.controller");
+const teamController = require("../controllers/team.controller");
 const {
   authenticate,
   authorize,
@@ -74,6 +75,12 @@ router.get(
 );
 
 router.get("/:classId/members", authenticate, classController.getClassMembers);
+
+router.get(
+  "/:classId/courseworks/:courseworkId/teams",
+  authenticate,
+  teamController.getCourseworkTeams,
+);
 
 // /api/classes/:id/sections
 router.use("/", sectionRoutes);
