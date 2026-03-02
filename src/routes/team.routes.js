@@ -12,4 +12,6 @@ router.post(
   teamController.createTeam
 );
 
+router.patch('/:teamId/lock', authenticate, authorize("Student"), teamController.lockTeam);
+
 module.exports = router;

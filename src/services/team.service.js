@@ -80,6 +80,32 @@ const createTeam = async (userId, teamData) => {
   return newTeam;
 };
 
+//Lock Team
+const lockTeam = async (teamId, userId) => {
+  const team = await Team.findById(teamId);
+
+  if (!team) {
+    throw new Error('Team not found');
+  }
+
+  // Check if user is LEADER
+  const leader = await TeamMember.findOne({
+    teamId,
+    studentId: userId,
+    role: 'LEADER',
+  });
+
+  if (!leader) {
+    throw new Error('Only leader can lock the team');
+  }
+
+  team.isLocked = true;
+  await team.save();
+
+  return team;
+};
+
 module.exports = {
   createTeam,
+  lockTeam
 };
