@@ -18,8 +18,8 @@ const classRoutes = require('./class.routes');
 const notificationRoutes = require('./notification.routes');
 const courseworks=require('./coursework.routes')
 const announcementRoutes = require('./announcement.routes');
+const teamRoutes = require('./team.routes');
 // const workspaceRoutes = require('./workspace.routes');
-// const teamRoutes = require('./team.routes');
 // const projectRoutes = require('./project.routes');
 // const taskRoutes = require('./task.routes');
 
@@ -29,9 +29,9 @@ router.use('/classes', classRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/courseworks', courseworks);
 router.use('/announcements', announcementRoutes);
+router.use('/teams', teamRoutes);
 // --- COMMENTED OUT ---
 // router.use('/workspaces', workspaceRoutes);
-// router.use('/teams', teamRoutes);
 // router.use('/projects', projectRoutes);
 // router.use('/tasks', taskRoutes);
 // --- END COMMENTED OUT ---
