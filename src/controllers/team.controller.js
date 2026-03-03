@@ -69,6 +69,109 @@ const getCourseworkTeams = async (req, res) => {
   }
 };
 
+// POST /api/teams/:teamId/join-requests
+const sendJoinRequest = async (req, res) => {
+  try {
+    const { teamId } = req.params;
+    const requesterId = req.user.id;
+
+    const request = await teamService.sendJoinRequest({ teamId, requesterId });
+
+    return res.status(201).json({
+      success: true,
+      message: "Join request sent successfully.",
+      data: request,
+    });
+  } catch (err) {
+    const status = err.statusCode || 500;
+    return res.status(status).json({
+      success: false,
+      message: err.message || "Internal Server Error",
+    });
+  }
+};
+
+// PATCH /api/teams/join-requests/:requestId/respond
+const respondToJoinRequest = async (req, res) => {
+  try {
+    const { requestId } = req.params;
+    const leaderId = req.user.id;
+    const { action } = req.body;
+
+    const result = await teamService.respondToJoinRequest({
+      requestId,
+      leaderId,
+      action,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Join request ${result.status.toLowerCase()}.`,
+      data: result,
+    });
+  } catch (err) {
+    const status = err.statusCode || 500;
+    return res.status(status).json({
+      success: false,
+      message: err.message || "Internal Server Error",
+    });
+  }
+};
+
+// POST /api/teams/:teamId/invitations
+const sendTeamInvitation = async (req, res) => {
+  try {
+    const { teamId } = req.params;
+    const leaderId = req.user.id;
+    const { studentId } = req.body;
+
+    const invitation = await teamService.sendTeamInvitation({
+      teamId,
+      leaderId,
+      studentId,
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Team invitation sent successfully.",
+      data: invitation,
+    });
+  } catch (err) {
+    const status = err.statusCode || 500;
+    return res.status(status).json({
+      success: false,
+      message: err.message || "Internal Server Error",
+    });
+  }
+};
+
+// PATCH /api/teams/invitations/:invitationId/respond
+const respondToTeamInvitation = async (req, res) => {
+  try {
+    const { invitationId } = req.params;
+    const studentId = req.user.id;
+    const { action } = req.body;
+
+    const result = await teamService.respondToTeamInvitation({
+      invitationId,
+      studentId,
+      action,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Team invitation ${result.status.toLowerCase()}.`,
+      data: result,
+    });
+  } catch (err) {
+    const status = err.statusCode || 500;
+    return res.status(status).json({
+      success: false,
+      message: err.message || "Internal Server Error",
+    });
+  }
+};
+
 // GET /api/courseworks/:courseworkId/teams/:teamId
 const getTeamDetails = async (req, res) => {
   try {
@@ -122,6 +225,10 @@ module.exports = {
   createTeam,
   lockTeam,
   getCourseworkTeams,
+  sendJoinRequest,
+  respondToJoinRequest,
+  sendTeamInvitation,
+  respondToTeamInvitation,
   getTeamDetails,
-  getStudentTeams
+  getStudentTeams,
 };

@@ -9,16 +9,21 @@ router.post(
   "/create",
   authenticate,
   authorize("Student"),
-  teamController.createTeam
+  teamController.createTeam,
 );
 
-router.patch('/:teamId/lock', authenticate, authorize("Student"), teamController.lockTeam);
+router.patch(
+  "/:teamId/lock",
+  authenticate,
+  authorize("Student"),
+  teamController.lockTeam,
+);
 
 // GET team details
 router.get(
   "/courseworks/:courseworkId/teams/:teamId",
   authenticate,
-  teamController.getTeamDetails
+  teamController.getTeamDetails,
 );
 
 // GET student's own teams
@@ -26,7 +31,41 @@ router.get(
   "/students/:studentId/teams",
   authenticate,
   authorize("Student"),
-  teamController.getStudentTeams
+  teamController.getStudentTeams,
+);
+router.patch(
+  "/:teamId/lock",
+  authenticate,
+  authorize("Student"),
+  teamController.lockTeam,
+);
+
+router.post(
+  "/:teamId/join-requests",
+  authenticate,
+  authorize("Student"),
+  teamController.sendJoinRequest,
+);
+
+router.patch(
+  "/join-requests/:requestId/respond",
+  authenticate,
+  authorize("Student"),
+  teamController.respondToJoinRequest,
+);
+
+router.post(
+  "/:teamId/invitations",
+  authenticate,
+  authorize("Student"),
+  teamController.sendTeamInvitation,
+);
+
+router.patch(
+  "/invitations/:invitationId/respond",
+  authenticate,
+  authorize("Student"),
+  teamController.respondToTeamInvitation,
 );
 
 module.exports = router;

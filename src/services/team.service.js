@@ -4,6 +4,9 @@ const Class = require("../models/Class");
 const Coursework = require("../models/CourseWork");
 const ClassProfile = require("../models/ClassProfile");
 const User = require("../models/User");
+const TeamJoinRequest = require("../models/TeamJoinRequest");
+const Notification = require("../models/Notification");
+const { onlineUsers, io } = require("../sockets/socket");
 
 const createTeam = async (userId, teamData) => {
   const { name, courseworkId } = teamData;
@@ -216,15 +219,15 @@ const getCourseworkTeams = async (classId, courseworkId, lockedQuery) => {
 const getTeamDetails = async (courseworkId, teamId) => {
   const team = await Team.findOne({
     _id: teamId,
-    courseworkId: courseworkId
+    courseworkId: courseworkId,
   })
-  .populate({
-    path: "classId",        
-    model: "Class",         
-    select: "course_name class_color class_code"
-  })
-  .populate("courseworkId", "name")
-  .populate("instructorId", "first_name last_name");
+    .populate({
+      path: "classId",
+      model: "Class",
+      select: "course_name class_color class_code",
+    })
+    .populate("courseworkId", "name")
+    .populate("instructorId", "first_name last_name");
 
   if (!team) {
     throw { message: "Team not found", statusCode: 404 };
@@ -262,26 +265,28 @@ const getStudentTeams = async (studentId, classCode) => {
   }
 
   if (student.role !== "Student") {
-    throw { message: "Only students can access this resource.", statusCode: 403 };
+    throw {
+      message: "Only students can access this resource.",
+      statusCode: 403,
+    };
   }
 
   // Get all team memberships for this student
-  const memberships = await TeamMember.find({ studentId })
-    .populate({
-      path: "teamId",
-      populate: [
-        {
-          path: "classId",
-          model: "Class",
-          select: "class_code class_color",
-        },
-        {
-          path: "courseworkId",
-          model: "Coursework",
-          select: "name",
-        },
-      ],
-    });
+  const memberships = await TeamMember.find({ studentId }).populate({
+    path: "teamId",
+    populate: [
+      {
+        path: "classId",
+        model: "Class",
+        select: "class_code class_color",
+      },
+      {
+        path: "courseworkId",
+        model: "Coursework",
+        select: "name",
+      },
+    ],
+  });
 
   if (!memberships.length) {
     return [];
@@ -306,10 +311,408 @@ const getStudentTeams = async (studentId, classCode) => {
   return result;
 };
 
+const ensureStudentEligibleForTeam = async ({
+  studentId,
+  team,
+  coursework,
+}) => {
+  const student = await User.findById(studentId).select(
+    "role first_name last_name",
+  );
+  if (!student || student.role !== "Student") {
+    throw {
+      message: "Only students are allowed in team invitation flows.",
+      statusCode: 403,
+    };
+  }
+
+  const classMembership = await ClassProfile.findOne({
+    classId: team.classId,
+    userId: studentId,
+  });
+  if (!classMembership) {
+    throw {
+      message: "Student is not a member of this class.",
+      statusCode: 403,
+    };
+  }
+
+  const teamMembership = await TeamMember.findOne({ studentId }).populate({
+    path: "teamId",
+    match: { courseworkId: team.courseworkId },
+  });
+
+  if (teamMembership && teamMembership.teamId) {
+    throw {
+      message: "Student is already in a team for this coursework.",
+      statusCode: 409,
+    };
+  }
+
+  const memberCount = await TeamMember.countDocuments({ teamId: team._id });
+  if (memberCount >= coursework.team_size_max) {
+    throw {
+      message: "Team is full and cannot accept more members.",
+      statusCode: 400,
+    };
+  }
+
+  if (team.isLocked) {
+    throw { message: "Team is locked.", statusCode: 400 };
+  }
+
+  return student;
+};
+
+const notifyUser = async ({ userId, type, message, referenceId = null }) => {
+  const notification = await Notification.create({
+    userId,
+    type,
+    message,
+    referenceId,
+    calendar_events: [],
+  });
+
+  const socketId = onlineUsers.get(userId.toString());
+  if (socketId) {
+    io.to(socketId).emit("newNotification", notification);
+  }
+
+  return notification;
+};
+
+const notifyTeamMembers = async ({
+  teamId,
+  excludeUserIds = [],
+  message,
+  referenceId = null,
+}) => {
+  const members = await TeamMember.find({ teamId }).select("studentId");
+  const excluded = new Set(excludeUserIds.map((id) => id.toString()));
+
+  const notifications = members
+    .map((member) => member.studentId)
+    .filter((studentId) => !excluded.has(studentId.toString()))
+    .map((studentId) => ({
+      userId: studentId,
+      type: "MESSAGE",
+      message,
+      referenceId,
+      calendar_events: [],
+    }));
+
+  if (notifications.length === 0) {
+    return;
+  }
+
+  const saved = await Notification.insertMany(notifications);
+
+  saved.forEach((notification) => {
+    const socketId = onlineUsers.get(notification.userId.toString());
+    if (socketId) {
+      io.to(socketId).emit("newNotification", notification);
+    }
+  });
+};
+
+const sendJoinRequest = async ({ teamId, requesterId }) => {
+  const team = await Team.findById(teamId);
+  if (!team) {
+    throw { message: "Team not found.", statusCode: 404 };
+  }
+
+  const coursework = await Coursework.findById(team.courseworkId);
+  if (!coursework || coursework.isDeleted) {
+    throw { message: "Coursework not found.", statusCode: 404 };
+  }
+
+  const leaderMembership = await TeamMember.findOne({
+    teamId,
+    role: "LEADER",
+  }).select("studentId");
+  if (!leaderMembership) {
+    throw { message: "Team leader not found.", statusCode: 404 };
+  }
+
+  if (leaderMembership.studentId.toString() === requesterId.toString()) {
+    throw {
+      message: "Team leader cannot send join request to own team.",
+      statusCode: 400,
+    };
+  }
+
+  const requester = await ensureStudentEligibleForTeam({
+    studentId: requesterId,
+    team,
+    coursework,
+  });
+
+  const existingPending = await TeamJoinRequest.findOne({
+    teamId,
+    senderId: requesterId,
+    receiverId: leaderMembership.studentId,
+    flowType: "STUDENT_REQUEST",
+    status: "PENDING",
+  });
+
+  if (existingPending) {
+    throw {
+      message: "A pending join request already exists.",
+      statusCode: 409,
+    };
+  }
+
+  const joinRequest = await TeamJoinRequest.create({
+    teamId,
+    senderId: requesterId,
+    receiverId: leaderMembership.studentId,
+    flowType: "STUDENT_REQUEST",
+    status: "PENDING",
+  });
+
+  await notifyUser({
+    userId: leaderMembership.studentId,
+    type: "TEAM_JOIN_REQUEST",
+    referenceId: joinRequest._id,
+    message: `${requester.first_name} ${requester.last_name} requested to join your team.`,
+  });
+
+  return joinRequest;
+};
+
+const respondToJoinRequest = async ({ requestId, leaderId, action }) => {
+  const joinRequest = await TeamJoinRequest.findById(requestId);
+  if (!joinRequest || joinRequest.flowType !== "STUDENT_REQUEST") {
+    throw { message: "Join request not found.", statusCode: 404 };
+  }
+
+  if (joinRequest.status !== "PENDING") {
+    throw {
+      message: "This join request is no longer active.",
+      statusCode: 400,
+    };
+  }
+
+  if (joinRequest.receiverId.toString() !== leaderId.toString()) {
+    throw {
+      message: "Only the team leader can respond to this join request.",
+      statusCode: 403,
+    };
+  }
+
+  const team = await Team.findById(joinRequest.teamId);
+  if (!team) {
+    throw { message: "Team not found.", statusCode: 404 };
+  }
+
+  const coursework = await Coursework.findById(team.courseworkId);
+  if (!coursework || coursework.isDeleted) {
+    throw { message: "Coursework not found.", statusCode: 404 };
+  }
+
+  if (action === "accept") {
+    await ensureStudentEligibleForTeam({
+      studentId: joinRequest.senderId,
+      team,
+      coursework,
+    });
+
+    await TeamMember.create({
+      teamId: team._id,
+      studentId: joinRequest.senderId,
+      role: "MEMBER",
+    });
+
+    joinRequest.status = "ACCEPTED";
+    await joinRequest.save();
+
+    const acceptedStudent = await User.findById(joinRequest.senderId).select(
+      "first_name last_name",
+    );
+
+    await notifyTeamMembers({
+      teamId: team._id,
+      excludeUserIds: [joinRequest.senderId],
+      referenceId: joinRequest._id,
+      message: `${acceptedStudent.first_name} ${acceptedStudent.last_name} joined your team.`,
+    });
+
+    await notifyUser({
+      userId: joinRequest.senderId,
+      type: "TEAM_REQUEST_ACCEPTED",
+      referenceId: joinRequest._id,
+      message: "Your request to join the team has been accepted.",
+    });
+
+    return { success: true, status: "ACCEPTED" };
+  }
+
+  if (action !== "reject") {
+    throw {
+      message: 'Invalid action. Use "accept" or "reject".',
+      statusCode: 400,
+    };
+  }
+
+  joinRequest.status = "REJECTED";
+  await joinRequest.save();
+
+  await notifyUser({
+    userId: joinRequest.senderId,
+    type: "TEAM_REQUEST_REJECTED",
+    referenceId: joinRequest._id,
+    message: "Your request to join the team has been rejected.",
+  });
+
+  return { success: true, status: "REJECTED" };
+};
+
+const sendTeamInvitation = async ({ teamId, leaderId, studentId }) => {
+  const team = await Team.findById(teamId);
+  if (!team) {
+    throw { message: "Team not found.", statusCode: 404 };
+  }
+
+  const leaderMembership = await TeamMember.findOne({
+    teamId,
+    studentId: leaderId,
+    role: "LEADER",
+  });
+
+  if (!leaderMembership) {
+    throw { message: "Only team leader can invite students.", statusCode: 403 };
+  }
+
+  if (leaderId.toString() === studentId.toString()) {
+    throw { message: "Leader cannot invite themselves.", statusCode: 400 };
+  }
+
+  const coursework = await Coursework.findById(team.courseworkId);
+  if (!coursework || coursework.isDeleted) {
+    throw { message: "Coursework not found.", statusCode: 404 };
+  }
+
+  const student = await ensureStudentEligibleForTeam({
+    studentId,
+    team,
+    coursework,
+  });
+
+  const existingPending = await TeamJoinRequest.findOne({
+    teamId,
+    senderId: leaderId,
+    receiverId: studentId,
+    flowType: "LEADER_INVITATION",
+    status: "PENDING",
+  });
+
+  if (existingPending) {
+    throw {
+      message: "A pending invitation already exists for this student.",
+      statusCode: 409,
+    };
+  }
+
+  const invitation = await TeamJoinRequest.create({
+    teamId,
+    senderId: leaderId,
+    receiverId: studentId,
+    flowType: "LEADER_INVITATION",
+    status: "PENDING",
+  });
+
+  await notifyUser({
+    userId: studentId,
+    type: "TEAM_INVITATION",
+    referenceId: invitation._id,
+    message: "You have received a team invitation.",
+  });
+
+  return invitation;
+};
+
+const respondToTeamInvitation = async ({ invitationId, studentId, action }) => {
+  const invitation = await TeamJoinRequest.findById(invitationId);
+  if (!invitation || invitation.flowType !== "LEADER_INVITATION") {
+    throw { message: "Team invitation not found.", statusCode: 404 };
+  }
+
+  if (invitation.status !== "PENDING") {
+    throw { message: "This invitation is no longer active.", statusCode: 400 };
+  }
+
+  if (invitation.receiverId.toString() !== studentId.toString()) {
+    throw { message: "Only invited student can respond.", statusCode: 403 };
+  }
+
+  const team = await Team.findById(invitation.teamId);
+  if (!team) {
+    throw { message: "Team not found.", statusCode: 404 };
+  }
+
+  const coursework = await Coursework.findById(team.courseworkId);
+  if (!coursework || coursework.isDeleted) {
+    throw { message: "Coursework not found.", statusCode: 404 };
+  }
+
+  if (action === "accept") {
+    await ensureStudentEligibleForTeam({
+      studentId: invitation.receiverId,
+      team,
+      coursework,
+    });
+
+    await TeamMember.create({
+      teamId: team._id,
+      studentId: invitation.receiverId,
+      role: "MEMBER",
+    });
+
+    invitation.status = "ACCEPTED";
+    await invitation.save();
+
+    const acceptedStudent = await User.findById(invitation.receiverId).select(
+      "first_name last_name",
+    );
+
+    await notifyTeamMembers({
+      teamId: team._id,
+      excludeUserIds: [invitation.receiverId],
+      referenceId: invitation._id,
+      message: `${acceptedStudent.first_name} ${acceptedStudent.last_name} joined your team.`,
+    });
+
+    return { success: true, status: "ACCEPTED" };
+  }
+
+  if (action !== "reject") {
+    throw {
+      message: 'Invalid action. Use "accept" or "reject".',
+      statusCode: 400,
+    };
+  }
+
+  invitation.status = "REJECTED";
+  await invitation.save();
+
+  await notifyUser({
+    userId: invitation.senderId,
+    type: "INVITATION_STATUS",
+    referenceId: invitation._id,
+    message: "A student has declined your team invitation.",
+  });
+
+  return { success: true, status: "REJECTED" };
+};
+
 module.exports = {
   createTeam,
   lockTeam,
   getCourseworkTeams,
   getTeamDetails,
   getStudentTeams,
+  sendJoinRequest,
+  respondToJoinRequest,
+  sendTeamInvitation,
+  respondToTeamInvitation,
 };
