@@ -254,9 +254,62 @@ const getTeamDetails = async (courseworkId, teamId) => {
   };
 };
 
+const getStudentTeams = async (studentId, classCode) => {
+  // Validate student exists
+  const student = await User.findById(studentId);
+  if (!student) {
+    throw { message: "Student not found.", statusCode: 404 };
+  }
+
+  if (student.role !== "Student") {
+    throw { message: "Only students can access this resource.", statusCode: 403 };
+  }
+
+  // Get all team memberships for this student
+  const memberships = await TeamMember.find({ studentId })
+    .populate({
+      path: "teamId",
+      populate: [
+        {
+          path: "classId",
+          model: "Class",
+          select: "class_code class_color",
+        },
+        {
+          path: "courseworkId",
+          model: "Coursework",
+          select: "name",
+        },
+      ],
+    });
+
+  if (!memberships.length) {
+    return [];
+  }
+
+  const result = memberships
+    .filter((m) => m.teamId) // safety
+    .filter((m) => {
+      if (!classCode) return true;
+      return (
+        m.teamId.classId &&
+        m.teamId.classId.class_code === classCode.toUpperCase()
+      );
+    })
+    .map((m) => ({
+      classCode: m.teamId.classId?.class_code || null,
+      classColor: m.teamId.classId?.class_color || "#FFFFFF",
+      teamName: m.teamId.name,
+      courseworkName: m.teamId.courseworkId?.name || null,
+    }));
+
+  return result;
+};
+
 module.exports = {
   createTeam,
   lockTeam,
   getCourseworkTeams,
-  getTeamDetails
+  getTeamDetails,
+  getStudentTeams,
 };

@@ -21,5 +21,12 @@ router.get(
   teamController.getTeamDetails
 );
 
+// GET student's own teams
+router.get(
+  "/students/:studentId/teams",
+  authenticate,
+  authorize("Student"),
+  teamController.getStudentTeams
+);
 
 module.exports = router;

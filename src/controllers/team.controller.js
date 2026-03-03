@@ -89,10 +89,39 @@ const getTeamDetails = async (req, res) => {
   }
 };
 
+// GET /api/students/:studentId/teams
+const getStudentTeams = async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const { classCode } = req.query;
+
+    // Security: student can only access his own teams
+    if (req.user.id !== studentId) {
+      return res.status(403).json({
+        success: false,
+        message: "You can only access your own teams.",
+      });
+    }
+
+    const teams = await teamService.getStudentTeams(studentId, classCode);
+
+    return res.status(200).json({
+      success: true,
+      data: teams,
+    });
+  } catch (err) {
+    const status = err.statusCode || 500;
+    return res.status(status).json({
+      success: false,
+      message: err.message || "Internal server error",
+    });
+  }
+};
 
 module.exports = {
   createTeam,
   lockTeam,
   getCourseworkTeams,
-  getTeamDetails
+  getTeamDetails,
+  getStudentTeams
 };
