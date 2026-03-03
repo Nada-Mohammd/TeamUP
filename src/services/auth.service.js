@@ -1,5 +1,6 @@
 // services/authService.js
 const User = require("../models/User");
+const StudentProfile = require("../models/StudentProfile");
 const axios = require("axios");
 
 const registerUser = async (userData) => {

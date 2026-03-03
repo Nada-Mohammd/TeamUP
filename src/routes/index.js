@@ -19,6 +19,7 @@ const notificationRoutes = require('./notification.routes');
 const courseworks=require('./coursework.routes')
 const announcementRoutes = require('./announcement.routes');
 const teamRoutes = require('./team.routes');
+const profileRoutes = require('./profile.routes');
 // const workspaceRoutes = require('./workspace.routes');
 // const projectRoutes = require('./project.routes');
 // const taskRoutes = require('./task.routes');
@@ -30,6 +31,7 @@ router.use('/notifications', notificationRoutes);
 router.use('/courseworks', courseworks);
 router.use('/announcements', announcementRoutes);
 router.use('/teams', teamRoutes);
+router.use('/profile', profileRoutes);
 // --- COMMENTED OUT ---
 // router.use('/workspaces', workspaceRoutes);
 // router.use('/projects', projectRoutes);
