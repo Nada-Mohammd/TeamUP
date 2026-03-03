@@ -69,8 +69,30 @@ const getCourseworkTeams = async (req, res) => {
   }
 };
 
+// GET /api/courseworks/:courseworkId/teams/:teamId
+const getTeamDetails = async (req, res) => {
+  try {
+    const { courseworkId, teamId } = req.params;
+
+    const teamDetails = await teamService.getTeamDetails(courseworkId, teamId);
+
+    return res.status(200).json({
+      success: true,
+      data: teamDetails,
+    });
+  } catch (err) {
+    const status = err.statusCode || 500;
+    return res.status(status).json({
+      success: false,
+      message: err.message || "Internal server error",
+    });
+  }
+};
+
+
 module.exports = {
   createTeam,
   lockTeam,
   getCourseworkTeams,
+  getTeamDetails
 };

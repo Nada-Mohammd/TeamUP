@@ -14,4 +14,12 @@ router.post(
 
 router.patch('/:teamId/lock', authenticate, authorize("Student"), teamController.lockTeam);
 
+// GET team details
+router.get(
+  "/courseworks/:courseworkId/teams/:teamId",
+  authenticate,
+  teamController.getTeamDetails
+);
+
+
 module.exports = router;

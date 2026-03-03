@@ -213,8 +213,50 @@ const getCourseworkTeams = async (classId, courseworkId, lockedQuery) => {
   }));
 };
 
+const getTeamDetails = async (courseworkId, teamId) => {
+  const team = await Team.findOne({
+    _id: teamId,
+    courseworkId: courseworkId
+  })
+  .populate({
+    path: "classId",        
+    model: "Class",         
+    select: "course_name class_color class_code"
+  })
+  .populate("courseworkId", "name")
+  .populate("instructorId", "first_name last_name");
+
+  if (!team) {
+    throw { message: "Team not found", statusCode: 404 };
+  }
+
+  const members = await TeamMember.find({ teamId: team._id })
+    .populate("studentId", "first_name last_name role")
+    .select("studentId role -_id");
+
+  const teamMembers = members.map((m) => ({
+    id: m.studentId._id,
+    name: `${m.studentId.first_name} ${m.studentId.last_name}`,
+    role: m.role,
+  }));
+
+  return {
+    teamName: team.name,
+    instructor: team.instructorId
+      ? `${team.instructorId.first_name} ${team.instructorId.last_name}`
+      : null,
+    teamMembers,
+    courseworkName: team.courseworkId?.name || null,
+    className: team.classId?.course_name || null,
+    classColor: team.classId?.class_color || "#FFFFFF",
+    classCode: team.classId?.class_code || null,
+    isLocked: team.isLocked,
+  };
+};
+
 module.exports = {
   createTeam,
   lockTeam,
   getCourseworkTeams,
+  getTeamDetails
 };
