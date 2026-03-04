@@ -22,6 +22,98 @@ const Notification = require("../../../../src/models/Notification");
 describe("Team Service - respondToTeamInvitation", () => {
   afterEach(() => jest.clearAllMocks());
 
+  it("auto-locks team when invitation acceptance reaches max size", async () => {
+    const saveInvitation = jest.fn().mockResolvedValue(true);
+    const saveTeam = jest.fn().mockResolvedValue(true);
+
+    TeamJoinRequest.findById.mockResolvedValue({
+      _id: "inv1",
+      flowType: "LEADER_INVITATION",
+      status: "PENDING",
+      receiverId: "student1",
+      senderId: "leader1",
+      teamId: "team1",
+      save: saveInvitation,
+    });
+
+    Team.findById
+      .mockResolvedValueOnce({
+        _id: "team1",
+        classId: "class1",
+        courseworkId: "cw1",
+        isLocked: false,
+        size: 2,
+      })
+      .mockResolvedValueOnce({
+        _id: "team1",
+        courseworkId: "cw1",
+        isLocked: false,
+        save: saveTeam,
+      });
+
+    Coursework.findById
+      .mockResolvedValueOnce({
+        _id: "cw1",
+        team_size_max: 5,
+        isDeleted: false,
+      })
+      .mockResolvedValueOnce({
+        _id: "cw1",
+        team_size_min: 2,
+      });
+
+    User.findById
+      .mockReturnValueOnce({
+        select: jest.fn().mockResolvedValue({
+          role: "Student",
+          first_name: "Mona",
+          last_name: "S",
+        }),
+      })
+      .mockReturnValueOnce({
+        select: jest
+          .fn()
+          .mockResolvedValue({ first_name: "Mona", last_name: "S" }),
+      });
+
+    ClassProfile.findOne.mockResolvedValue({ _id: "cp1" });
+
+    TeamMember.findOne.mockImplementation((query) => {
+      if (query.role === "LEADER") {
+        return Promise.resolve({ _id: "leaderMembership" });
+      }
+      return {
+        populate: jest.fn().mockResolvedValue({ teamId: null }),
+      };
+    });
+
+    TeamMember.countDocuments
+      .mockResolvedValueOnce(1)
+      .mockResolvedValueOnce(2)
+      .mockResolvedValueOnce(2);
+
+    TeamMember.create.mockResolvedValue({ _id: "tm1" });
+    TeamMember.find.mockReturnValue({
+      select: jest
+        .fn()
+        .mockResolvedValue([
+          { studentId: "leader1" },
+          { studentId: "student1" },
+        ]),
+    });
+
+    Notification.insertMany.mockResolvedValue([{ userId: "leader1" }]);
+
+    const result = await teamService.respondToTeamInvitation({
+      invitationId: "inv1",
+      studentId: "student1",
+      action: "accept",
+    });
+
+    expect(saveTeam).toHaveBeenCalledTimes(1);
+    expect(result.status).toBe("ACCEPTED");
+  });
+
   it("accepts invitation and adds student to team", async () => {
     const save = jest.fn().mockResolvedValue(true);
     TeamJoinRequest.findById.mockResolvedValue({
@@ -46,13 +138,11 @@ describe("Team Service - respondToTeamInvitation", () => {
     });
     User.findById
       .mockReturnValueOnce({
-        select: jest
-          .fn()
-          .mockResolvedValue({
-            role: "Student",
-            first_name: "Mona",
-            last_name: "S",
-          }),
+        select: jest.fn().mockResolvedValue({
+          role: "Student",
+          first_name: "Mona",
+          last_name: "S",
+        }),
       })
       .mockReturnValueOnce({
         select: jest
