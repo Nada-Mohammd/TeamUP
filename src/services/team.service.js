@@ -415,6 +415,17 @@ const notifyTeamMembers = async ({
   });
 };
 
+const autoLockTeamIfFull = async ({ teamId, leaderId, maxSize, isLocked }) => {
+  if (isLocked) {
+    return;
+  }
+
+  const currentCount = await TeamMember.countDocuments({ teamId });
+  if (currentCount >= maxSize) {
+    await lockTeam(teamId, leaderId);
+  }
+};
+
 const sendJoinRequest = async ({ teamId, requesterId }) => {
   const team = await Team.findById(teamId);
   if (!team) {
@@ -542,6 +553,13 @@ const respondToJoinRequest = async ({ requestId, leaderId, action }) => {
       type: "TEAM_REQUEST_ACCEPTED",
       referenceId: joinRequest._id,
       message: "Your request to join the team has been accepted.",
+    });
+
+    await autoLockTeamIfFull({
+      teamId: team._id,
+      leaderId,
+      maxSize: team.size,
+      isLocked: team.isLocked,
     });
 
     return { success: true, status: "ACCEPTED" };
@@ -680,6 +698,13 @@ const respondToTeamInvitation = async ({ invitationId, studentId, action }) => {
       excludeUserIds: [invitation.receiverId],
       referenceId: invitation._id,
       message: `${acceptedStudent.first_name} ${acceptedStudent.last_name} joined your team.`,
+    });
+
+    await autoLockTeamIfFull({
+      teamId: team._id,
+      leaderId: invitation.senderId,
+      maxSize: team.size,
+      isLocked: team.isLocked,
     });
 
     return { success: true, status: "ACCEPTED" };
