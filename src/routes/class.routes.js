@@ -89,4 +89,13 @@ router.get("/:classId/search-users", authenticate, classController.searchUsers);
 
 router.get("/:classId/posts", authenticate, classController.getClassPosts);
 
+// PATCH /api/classes/:classId/instructors/:instructorId/role
+router.patch(
+  "/:classId/instructors/:instructorId/role",
+  authenticate,
+  authorize("Instructor"),
+  authorizeClassRole("admin"),
+  classController.assignInstructorAsAdmin
+);
+
 module.exports = router;

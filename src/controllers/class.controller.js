@@ -278,6 +278,33 @@ const getClassPosts = async (req, res) => {
   }
 };
 
+const assignInstructorAsAdmin = async (req, res) => {
+  try {
+    const { classId, instructorId } = req.params;
+    const requesterId = req.user.id;
+
+    const result = await classService.assignInstructorAsAdmin(
+      classId,
+      instructorId,
+      requesterId,
+      req.io,
+      require("../sockets/socket").onlineUsers
+    );
+
+    res.status(result.statusCode).json({
+      success: true,
+      message: result.message,
+      data: result.data,
+    });
+
+  } catch (error) {
+    res.status(error.statusCode || 500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
 module.exports = {
   getClasses,
   createClass,
@@ -291,4 +318,5 @@ module.exports = {
   getClassMemberCount,
   getClassMembers,
   getClassPosts,
+  assignInstructorAsAdmin
 };
