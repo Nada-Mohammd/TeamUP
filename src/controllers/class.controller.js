@@ -283,7 +283,8 @@ const assignInstructorAsAdmin = async (req, res) => {
     const { classId, instructorId } = req.params;
     const requesterId = req.user.id;
 
-    const result = await classService.assignInstructorAsAdmin(
+    // Call service
+    const classDoc = await require("../services/class.service").assignInstructorAsAdmin(
       classId,
       instructorId,
       requesterId,
@@ -291,10 +292,20 @@ const assignInstructorAsAdmin = async (req, res) => {
       require("../sockets/socket").onlineUsers
     );
 
-    res.status(result.statusCode).json({
+    // Fetch class details for course_code and class_color
+    const ClassModel = require("../models/Class");
+    const classInfo = await ClassModel.findById(classId).select("course_code class_color");
+
+    res.status(classDoc.statusCode).json({
       success: true,
-      message: result.message,
-      data: result.data,
+      message: classDoc.message,
+      data: {
+        classId,
+        instructorId,
+        newRole: "admin",
+        course_code: classInfo.course_code,
+        class_color: classInfo.class_color,
+      },
     });
 
   } catch (error) {
