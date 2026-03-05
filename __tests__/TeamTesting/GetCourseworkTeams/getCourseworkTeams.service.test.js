@@ -127,12 +127,14 @@ describe("teamService.getCourseworkTeams", () => {
 
     expect(result).toHaveLength(2);
     expect(result[0]).toMatchObject({
+      teamId: "team1",
       teamName: "Alpha",
       courseworkName: "Project 1",
       className: "Data Structures",
     });
     expect(result[0].teamMembers).toHaveLength(2);
     expect(result[1]).toMatchObject({
+      teamId: "team2",
       teamName: "Beta",
       courseworkName: "Project 1",
       className: "Data Structures",

@@ -209,6 +209,7 @@ const getCourseworkTeams = async (classId, courseworkId, lockedQuery) => {
   const courseworkName = courseworkDoc.name;
 
   return teams.map((team) => ({
+    teamId: team._id,
     teamName: team.name,
     teamMembers: membersByTeamId.get(team._id.toString()) || [],
     courseworkName,
