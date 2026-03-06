@@ -98,7 +98,7 @@ const studentProfileSchema = new Schema(
     availability: {
       type: [String],
       enum: {
-        values: ["morning", "evening", "night"],
+        values: ["morning", "evening", "night", "all day"],
         message: "{VALUE} is not a valid availability slot.",
       },
       default: [],
@@ -118,6 +118,12 @@ const studentProfileSchema = new Schema(
     cv: {
       filename: { type: String, default: null }, // original file name shown to user
       storagePath: { type: String, default: null }, // S3 key, GridFS id, or local path
+      uploadedAt: { type: Date, default: null },
+    },
+
+    profilePicture: {
+      filename: { type: String, default: null },
+      storagePath: { type: String, default: null },
       uploadedAt: { type: Date, default: null },
     },
 
