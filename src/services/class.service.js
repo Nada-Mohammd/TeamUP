@@ -584,6 +584,9 @@ const assignInstructorAsAdmin = async (
   //Update role
   membership.classRole = "admin";
   await membership.save();
+  const requester = await User.findById(requesterId).select(
+  "_id first_name last_name username email"
+);
 
   //Create notification
   const notification = await Notification.create({
@@ -604,14 +607,22 @@ const assignInstructorAsAdmin = async (
   }
 
   return {
-    statusCode: 200,
-    message: "Instructor promoted to admin successfully.",
-    data: {
-      classId,
-      instructorId,
-      newRole: "admin",
+  statusCode: 200,
+  message: "Instructor promoted to admin successfully.",
+  data: {
+    classId,
+    instructorId,
+    newRole: "admin",
+
+    assignedBy: {
+      _id: requester._id,
+      first_name: requester.first_name,
+      last_name: requester.last_name,
+      username: requester.username,
+      email: requester.email,
     },
-  };
+  },
+};
 };
 
 module.exports = {

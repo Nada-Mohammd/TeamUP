@@ -305,6 +305,7 @@ const assignInstructorAsAdmin = async (req, res) => {
         newRole: "admin",
         course_code: classInfo.course_code,
         class_color: classInfo.class_color,
+        assignedBy: classDoc.data.assignedBy
       },
     });
 
