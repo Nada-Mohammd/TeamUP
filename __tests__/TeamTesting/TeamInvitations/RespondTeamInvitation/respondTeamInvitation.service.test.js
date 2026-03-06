@@ -1,4 +1,5 @@
 jest.mock("../../../../src/models/Team");
+jest.mock("../../../../src/models/Class");
 jest.mock("../../../../src/models/TeamMembers");
 jest.mock("../../../../src/models/CourseWork");
 jest.mock("../../../../src/models/ClassProfile");
@@ -12,6 +13,7 @@ jest.mock("../../../../src/sockets/socket", () => ({
 
 const teamService = require("../../../../src/services/team.service");
 const Team = require("../../../../src/models/Team");
+const Class = require("../../../../src/models/Class");
 const TeamMember = require("../../../../src/models/TeamMembers");
 const Coursework = require("../../../../src/models/CourseWork");
 const ClassProfile = require("../../../../src/models/ClassProfile");
@@ -20,6 +22,12 @@ const TeamJoinRequest = require("../../../../src/models/TeamJoinRequest");
 const Notification = require("../../../../src/models/Notification");
 
 describe("Team Service - respondToTeamInvitation", () => {
+  beforeEach(() => {
+    Class.findById.mockReturnValue({
+      select: jest.fn().mockResolvedValue({ course_name: "Data Structures" }),
+    });
+  });
+
   afterEach(() => jest.clearAllMocks());
 
   it("auto-locks team when invitation acceptance reaches max size", async () => {
@@ -191,6 +199,22 @@ describe("Team Service - respondToTeamInvitation", () => {
       senderId: "leader1",
       teamId: "team1",
       save,
+    });
+    Team.findById.mockResolvedValue({
+      _id: "team1",
+      classId: "class1",
+      courseworkId: "cw1",
+      isLocked: false,
+    });
+    Coursework.findById.mockResolvedValue({
+      _id: "cw1",
+      team_size_max: 5,
+      isDeleted: false,
+    });
+    User.findById.mockReturnValue({
+      select: jest
+        .fn()
+        .mockResolvedValue({ first_name: "Mona", last_name: "S" }),
     });
     Notification.create.mockResolvedValue({ _id: "n1" });
 

@@ -139,7 +139,6 @@ const parseLockedQuery = (locked) => {
   if (normalized === "false") return false;
 
   throw new Error('Invalid locked query value. Use "true" or "false".');
-  c;
 };
 
 const getCourseworkTeams = async (classId, courseworkId, lockedQuery) => {
@@ -416,6 +415,26 @@ const notifyTeamMembers = async ({
   });
 };
 
+const getTeamClassAndCourseworkNames = async ({ team, coursework }) => {
+  const classDoc = await Class.findById(team.classId).select("course_name");
+
+  return {
+    teamName: team.name,
+    className: classDoc?.course_name || "Unknown Class",
+    courseworkName: coursework?.name || "Unknown Coursework",
+  };
+};
+
+const buildInvitationFlowMessage = ({
+  actorFullName,
+  actionLine,
+  teamName,
+  className,
+  courseworkName,
+}) => {
+  return `${actorFullName} ${actionLine} "${teamName}"\nClass: "${className}"\nCoursework: "${courseworkName}"`;
+};
+
 const autoLockTeamIfFull = async ({ teamId, leaderId, maxSize, isLocked }) => {
   if (isLocked) {
     return;
@@ -459,6 +478,9 @@ const sendJoinRequest = async ({ teamId, requesterId }) => {
     coursework,
   });
 
+  const { teamName, className, courseworkName } =
+    await getTeamClassAndCourseworkNames({ team, coursework });
+
   const existingPending = await TeamJoinRequest.findOne({
     teamId,
     senderId: requesterId,
@@ -486,7 +508,13 @@ const sendJoinRequest = async ({ teamId, requesterId }) => {
     userId: leaderMembership.studentId,
     type: "TEAM_JOIN_REQUEST",
     referenceId: joinRequest._id,
-    message: `${requester.first_name} ${requester.last_name} requested to join your team.`,
+    message: buildInvitationFlowMessage({
+      actorFullName: `${requester.first_name} ${requester.last_name}`,
+      actionLine: "requested to join your team",
+      teamName,
+      className,
+      courseworkName,
+    }),
   });
 
   return joinRequest;
@@ -522,6 +550,13 @@ const respondToJoinRequest = async ({ requestId, leaderId, action }) => {
     throw { message: "Coursework not found.", statusCode: 404 };
   }
 
+  const { teamName, className, courseworkName } =
+    await getTeamClassAndCourseworkNames({ team, coursework });
+  const leader = await User.findById(leaderId).select("first_name last_name");
+  const leaderFullName = leader
+    ? `${leader.first_name} ${leader.last_name}`
+    : "Team leader";
+
   if (action === "accept") {
     await ensureStudentEligibleForTeam({
       studentId: joinRequest.senderId,
@@ -546,14 +581,26 @@ const respondToJoinRequest = async ({ requestId, leaderId, action }) => {
       teamId: team._id,
       excludeUserIds: [joinRequest.senderId],
       referenceId: joinRequest._id,
-      message: `${acceptedStudent.first_name} ${acceptedStudent.last_name} joined your team.`,
+      message: buildInvitationFlowMessage({
+        actorFullName: `${acceptedStudent.first_name} ${acceptedStudent.last_name}`,
+        actionLine: "joined your team",
+        teamName,
+        className,
+        courseworkName,
+      }),
     });
 
     await notifyUser({
       userId: joinRequest.senderId,
       type: "TEAM_REQUEST_ACCEPTED",
       referenceId: joinRequest._id,
-      message: "Your request to join the team has been accepted.",
+      message: buildInvitationFlowMessage({
+        actorFullName: leaderFullName,
+        actionLine: "accepted your request to join team",
+        teamName,
+        className,
+        courseworkName,
+      }),
     });
 
     await autoLockTeamIfFull({
@@ -580,7 +627,13 @@ const respondToJoinRequest = async ({ requestId, leaderId, action }) => {
     userId: joinRequest.senderId,
     type: "TEAM_REQUEST_REJECTED",
     referenceId: joinRequest._id,
-    message: "Your request to join the team has been rejected.",
+    message: buildInvitationFlowMessage({
+      actorFullName: leaderFullName,
+      actionLine: "rejected your request to join team",
+      teamName,
+      className,
+      courseworkName,
+    }),
   });
 
   return { success: true, status: "REJECTED" };
@@ -611,11 +664,19 @@ const sendTeamInvitation = async ({ teamId, leaderId, studentId }) => {
     throw { message: "Coursework not found.", statusCode: 404 };
   }
 
-  const student = await ensureStudentEligibleForTeam({
+  await ensureStudentEligibleForTeam({
     studentId,
     team,
     coursework,
   });
+
+  const leader = await User.findById(leaderId).select("first_name last_name");
+  const leaderFullName = leader
+    ? `${leader.first_name} ${leader.last_name}`
+    : "Team leader";
+
+  const { teamName, className, courseworkName } =
+    await getTeamClassAndCourseworkNames({ team, coursework });
 
   const existingPending = await TeamJoinRequest.findOne({
     teamId,
@@ -644,7 +705,13 @@ const sendTeamInvitation = async ({ teamId, leaderId, studentId }) => {
     userId: studentId,
     type: "TEAM_INVITATION",
     referenceId: invitation._id,
-    message: "You have received a team invitation.",
+    message: buildInvitationFlowMessage({
+      actorFullName: leaderFullName,
+      actionLine: "invited you to join team",
+      teamName,
+      className,
+      courseworkName,
+    }),
   });
 
   return invitation;
@@ -674,6 +741,9 @@ const respondToTeamInvitation = async ({ invitationId, studentId, action }) => {
     throw { message: "Coursework not found.", statusCode: 404 };
   }
 
+  const { teamName, className, courseworkName } =
+    await getTeamClassAndCourseworkNames({ team, coursework });
+
   if (action === "accept") {
     await ensureStudentEligibleForTeam({
       studentId: invitation.receiverId,
@@ -698,7 +768,13 @@ const respondToTeamInvitation = async ({ invitationId, studentId, action }) => {
       teamId: team._id,
       excludeUserIds: [invitation.receiverId],
       referenceId: invitation._id,
-      message: `${acceptedStudent.first_name} ${acceptedStudent.last_name} joined your team.`,
+      message: buildInvitationFlowMessage({
+        actorFullName: `${acceptedStudent.first_name} ${acceptedStudent.last_name}`,
+        actionLine: "joined your team",
+        teamName,
+        className,
+        courseworkName,
+      }),
     });
 
     await autoLockTeamIfFull({
@@ -721,11 +797,22 @@ const respondToTeamInvitation = async ({ invitationId, studentId, action }) => {
   invitation.status = "REJECTED";
   await invitation.save();
 
+  const student = await User.findById(studentId).select("first_name last_name");
+  const studentFullName = student
+    ? `${student.first_name} ${student.last_name}`
+    : "A student";
+
   await notifyUser({
     userId: invitation.senderId,
     type: "INVITATION_STATUS",
     referenceId: invitation._id,
-    message: "A student has declined your team invitation.",
+    message: buildInvitationFlowMessage({
+      actorFullName: studentFullName,
+      actionLine: "declined your invitation to join team",
+      teamName,
+      className,
+      courseworkName,
+    }),
   });
 
   return { success: true, status: "REJECTED" };
