@@ -30,7 +30,7 @@ describe("classService.getClassMembers", () => {
     ).rejects.toThrow("You are not a member of this class.");
   });
 
-  test("should return instructors and students arrays and ignore null populated users", async () => {
+  test("should return admins, instructors, and students arrays and ignore null populated users", async () => {
     Class.findById.mockResolvedValue({ _id: classId });
     ClassProfile.findOne.mockResolvedValue({
       classId,
@@ -83,8 +83,14 @@ describe("classService.getClassMembers", () => {
     });
     expect(sortMock).toHaveBeenCalledWith({ joined_date: 1 });
 
+    expect(result.admins).toHaveLength(1);
     expect(result.instructors).toHaveLength(1);
     expect(result.students).toHaveLength(1);
+    expect(result.admins[0]).toMatchObject({
+      _id: "inst1",
+      first_name: "Aya",
+      classRole: "admin",
+    });
     expect(result.instructors[0]).toMatchObject({
       _id: "inst1",
       first_name: "Aya",

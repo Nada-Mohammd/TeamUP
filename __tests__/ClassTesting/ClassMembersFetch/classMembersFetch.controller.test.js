@@ -21,8 +21,9 @@ describe("classController.getClassMembers", () => {
     jest.clearAllMocks();
   });
 
-  test("should return 200 with instructors and students", async () => {
+  test("should return 200 with admins, instructors, and students", async () => {
     const mockData = {
+      admins: [{ _id: "inst1", first_name: "Aya", classRole: "admin" }],
       instructors: [{ _id: "inst1", first_name: "Aya" }],
       students: [{ _id: "stud1", first_name: "Mona" }],
     };
