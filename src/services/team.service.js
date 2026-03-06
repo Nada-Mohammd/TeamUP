@@ -763,14 +763,30 @@ const respondToTeamInvitation = async ({ invitationId, studentId, action }) => {
     const acceptedStudent = await User.findById(invitation.receiverId).select(
       "first_name last_name",
     );
+    const acceptedStudentFullName = acceptedStudent
+      ? `${acceptedStudent.first_name} ${acceptedStudent.last_name}`
+      : "A student";
 
     await notifyTeamMembers({
       teamId: team._id,
       excludeUserIds: [invitation.receiverId],
       referenceId: invitation._id,
       message: buildInvitationFlowMessage({
-        actorFullName: `${acceptedStudent.first_name} ${acceptedStudent.last_name}`,
+        actorFullName: acceptedStudentFullName,
         actionLine: "joined your team",
+        teamName,
+        className,
+        courseworkName,
+      }),
+    });
+
+    await notifyUser({
+      userId: invitation.senderId,
+      type: "INVITATION_STATUS",
+      referenceId: invitation._id,
+      message: buildInvitationFlowMessage({
+        actorFullName: acceptedStudentFullName,
+        actionLine: "accepted your invitation to join team",
         teamName,
         className,
         courseworkName,
