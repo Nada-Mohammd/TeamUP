@@ -29,6 +29,7 @@ describe("teamController.getCourseworkTeams", () => {
   test("should return teams successfully", async () => {
     const teams = [
       {
+        teamId: "team1",
         teamName: "Alpha",
         teamMembers: [{ _id: "u1", first_name: "Nada" }],
         courseworkName: "Project 1",

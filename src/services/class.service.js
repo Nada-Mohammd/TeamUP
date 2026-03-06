@@ -513,6 +513,118 @@ const getClassPosts = async (classId) => {
   });
 };
 
+// Assign instructor as admin
+const assignInstructorAsAdmin = async (
+  classId,
+  instructorId,
+  requesterId,
+  io,
+  onlineUsers
+) => {
+  // Validate class exists
+  const classDoc = await Class.findById(classId);
+  if (!classDoc) {
+    const error = new Error("Class not found.");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  // Validate requester is admin
+  const requesterProfile = await ClassProfile.findOne({
+    classId,
+    userId: requesterId,
+    classRole: "admin",
+  });
+
+  if (!requesterProfile) {
+    const error = new Error("Only class admins can assign another admin.");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  // Validate instructor exists
+  const instructor = await User.findById(instructorId);
+  if (!instructor) {
+    const error = new Error("Instructor not found.");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  if (instructor.role !== "Instructor") {
+    const error = new Error(
+      "Only instructors can be assigned as class admins."
+    );
+    error.statusCode = 400;
+    throw error;
+  }
+
+  // Check membership
+  const membership = await ClassProfile.findOne({
+    classId,
+    userId: instructorId,
+  });
+
+  if (!membership) {
+    const error = new Error(
+      "Instructor must be a member of the class first."
+    );
+    error.statusCode = 400;
+    throw error;
+  }
+
+  // Already admin
+  if (membership.classRole === "admin") {
+    const error = new Error(
+      "This instructor is already an admin of this class."
+    );
+    error.statusCode = 409;
+    throw error;
+  }
+
+  //Update role
+  membership.classRole = "admin";
+  await membership.save();
+  const requester = await User.findById(requesterId).select(
+  "_id first_name last_name username email"
+);
+
+  //Create notification
+  const notification = await Notification.create({
+    userId: instructorId,
+    type: "ANNOUNCEMENT",
+    referenceId: classId,
+    message: `You have been successfully assigned as a class administrator for ${classDoc.course_name} (${classDoc.course_code}). You now have full administrative privileges in this class.`,
+    courseCode: classDoc.course_code,
+    classColor: classDoc.class_color,
+  });
+
+  // Optional emit
+  if (io && onlineUsers) {
+    const socketId = onlineUsers.get(instructorId.toString());
+    if (socketId) {
+      io.to(socketId).emit("newNotification", notification);
+    }
+  }
+
+  return {
+  statusCode: 200,
+  message: "Instructor promoted to admin successfully.",
+  data: {
+    classId,
+    instructorId,
+    newRole: "admin",
+
+    assignedBy: {
+      _id: requester._id,
+      first_name: requester.first_name,
+      last_name: requester.last_name,
+      username: requester.username,
+      email: requester.email,
+    },
+  },
+};
+};
+
 module.exports = {
   getClasses,
   createClass,
@@ -526,4 +638,5 @@ module.exports = {
   getClassMemberCount,
   getClassMembers,
   getClassPosts,
+  assignInstructorAsAdmin
 };
