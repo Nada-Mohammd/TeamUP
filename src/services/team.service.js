@@ -257,7 +257,7 @@ const getTeamDetails = async (courseworkId, teamId) => {
   };
 };
 
-const getStudentTeams = async (studentId, classCode) => {
+const getStudentTeams = async (studentId, courseCode) => {
   // Validate student exists
   const student = await User.findById(studentId);
   if (!student) {
@@ -278,7 +278,7 @@ const getStudentTeams = async (studentId, classCode) => {
       {
         path: "classId",
         model: "Class",
-        select: "class_code class_color",
+        select: "course_code class_code class_color",
       },
       {
         path: "courseworkId",
@@ -295,15 +295,22 @@ const getStudentTeams = async (studentId, classCode) => {
   const result = memberships
     .filter((m) => m.teamId) // safety
     .filter((m) => {
-      if (!classCode) return true;
+      if (!courseCode) return true;
+
       return (
         m.teamId.classId &&
-        m.teamId.classId.class_code === classCode.toUpperCase()
+        m.teamId.classId.course_code === courseCode.toUpperCase()
       );
     })
     .map((m) => ({
+      teamId: m.teamId._id,
+      courseworkId: m.teamId.courseworkId?._id || null,
+      classId: m.teamId.classId?._id || null,
+
+      courseCode: m.teamId.classId?.course_code || null,
       classCode: m.teamId.classId?.class_code || null,
       classColor: m.teamId.classId?.class_color || "#FFFFFF",
+
       teamName: m.teamId.name,
       courseworkName: m.teamId.courseworkId?.name || null,
     }));
