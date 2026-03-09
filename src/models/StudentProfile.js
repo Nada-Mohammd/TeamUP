@@ -127,7 +127,7 @@ const studentProfileSchema = new Schema(
       uploadedAt: { type: Date, default: null },
     },
 
-    profilePicture: {
+    profile_picture: {
       filename: { type: String, default: null },
       storagePath: { type: String, default: null },
       uploadedAt: { type: Date, default: null },
