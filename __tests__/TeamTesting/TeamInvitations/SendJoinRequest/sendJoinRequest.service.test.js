@@ -1,4 +1,5 @@
 jest.mock("../../../../src/models/Team");
+jest.mock("../../../../src/models/Class");
 jest.mock("../../../../src/models/TeamMembers");
 jest.mock("../../../../src/models/CourseWork");
 jest.mock("../../../../src/models/ClassProfile");
@@ -12,6 +13,7 @@ jest.mock("../../../../src/sockets/socket", () => ({
 
 const teamService = require("../../../../src/services/team.service");
 const Team = require("../../../../src/models/Team");
+const Class = require("../../../../src/models/Class");
 const TeamMember = require("../../../../src/models/TeamMembers");
 const Coursework = require("../../../../src/models/CourseWork");
 const ClassProfile = require("../../../../src/models/ClassProfile");
@@ -20,6 +22,12 @@ const TeamJoinRequest = require("../../../../src/models/TeamJoinRequest");
 const Notification = require("../../../../src/models/Notification");
 
 describe("Team Service - sendJoinRequest", () => {
+  beforeEach(() => {
+    Class.findById.mockReturnValue({
+      select: jest.fn().mockResolvedValue({ course_name: "Data Structures" }),
+    });
+  });
+
   afterEach(() => jest.clearAllMocks());
 
   it("creates join request and notifies leader", async () => {
@@ -44,13 +52,11 @@ describe("Team Service - sendJoinRequest", () => {
       });
 
     User.findById.mockReturnValue({
-      select: jest
-        .fn()
-        .mockResolvedValue({
-          role: "Student",
-          first_name: "Ali",
-          last_name: "M",
-        }),
+      select: jest.fn().mockResolvedValue({
+        role: "Student",
+        first_name: "Ali",
+        last_name: "M",
+      }),
     });
     ClassProfile.findOne.mockResolvedValue({ _id: "cp1" });
     TeamMember.countDocuments.mockResolvedValue(1);
@@ -99,13 +105,11 @@ describe("Team Service - sendJoinRequest", () => {
         populate: jest.fn().mockResolvedValue({ teamId: null }),
       });
     User.findById.mockReturnValue({
-      select: jest
-        .fn()
-        .mockResolvedValue({
-          role: "Student",
-          first_name: "Ali",
-          last_name: "M",
-        }),
+      select: jest.fn().mockResolvedValue({
+        role: "Student",
+        first_name: "Ali",
+        last_name: "M",
+      }),
     });
     ClassProfile.findOne.mockResolvedValue({ _id: "cp1" });
     TeamMember.countDocuments.mockResolvedValue(1);

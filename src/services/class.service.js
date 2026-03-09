@@ -471,10 +471,12 @@ const getClassMembers = async (classId, requesterId) => {
       joined_date: profile.joined_date,
     }));
 
+  const admins = members.filter((member) => member.classRole === "admin");
   const instructors = members.filter((member) => member.role === "Instructor");
   const students = members.filter((member) => member.role === "Student");
 
   return {
+    admins,
     instructors,
     students,
   };
