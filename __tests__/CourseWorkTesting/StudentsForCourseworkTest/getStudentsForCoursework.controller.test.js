@@ -12,10 +12,12 @@ const mockRes = () => {
   return res;
 };
 
-// Controller now reads both req.params.courseworkId and req.classId (set by middleware)
-const mockReq = (courseworkId, classId = 'cls123') => ({
-  params: { courseworkId },
+// Controller reads courseworkId + teamId from params, classId from req (middleware),
+// and userId from req.user (authenticate middleware)
+const mockReq = (courseworkId, teamId, classId = 'cls123', userId = 'user123') => ({
+  params: { courseworkId, teamId },
   classId,
+  user: { id: userId },
 });
 
 const makeStudents = () => [
@@ -25,6 +27,7 @@ const makeStudents = () => [
     last_name: 'Smith',
     email: 'alice@stud.fci-cu.edu.eg',
     profile_picture: null,
+    invitation_status: null,
   },
   {
     user_id: 'uid2',
@@ -32,6 +35,7 @@ const makeStudents = () => [
     last_name: 'Jones',
     email: 'bob@stud.fci-cu.edu.eg',
     profile_picture: { storagePath: '/uploads/bob.png', filename: 'bob.png', uploadedAt: new Date() },
+    invitation_status: 'PENDING',
   },
 ];
 
@@ -45,13 +49,15 @@ describe('getAvailableStudents controller', () => {
     const students = makeStudents();
     courseworkService.getAvailableStudents.mockResolvedValue(students);
 
-    const req = mockReq('cw123', 'cls123');
+    const req = mockReq('cw123', 'team123', 'cls123', 'user123');
     const res = mockRes();
 
     await getAvailableStudents(req, res);
 
-    // Service must be called with both courseworkId AND classId from req
-    expect(courseworkService.getAvailableStudents).toHaveBeenCalledWith('cw123', 'cls123');
+    // Service must be called with courseworkId, classId, userId, and teamId
+    expect(courseworkService.getAvailableStudents).toHaveBeenCalledWith(
+      'cw123', 'cls123', 'user123', 'team123'
+    );
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith({
       success: true,
@@ -64,7 +70,7 @@ describe('getAvailableStudents controller', () => {
   it('returns 200 with empty data and message when all students have joined teams', async () => {
     courseworkService.getAvailableStudents.mockResolvedValue([]);
 
-    const req = mockReq('cw123', 'cls123');
+    const req = mockReq('cw123', 'team123');
     const res = mockRes();
 
     await getAvailableStudents(req, res);
@@ -84,7 +90,7 @@ describe('getAvailableStudents controller', () => {
       new Error('No students are enrolled in this class.')
     );
 
-    const req = mockReq('cw123', 'cls123');
+    const req = mockReq('cw123', 'team123');
     const res = mockRes();
 
     await getAvailableStudents(req, res);
@@ -96,15 +102,13 @@ describe('getAvailableStudents controller', () => {
     });
   });
 
-  // ── 404: coursework not found — kept as defensive catch ─────────────────
-  // Middleware handles this before the controller runs, but the error handler
-  // is still present in the controller as a safety net.
+  // ── 404: coursework not found — defensive catch ──────────────────────────
   it('returns 404 when service throws coursework not found error', async () => {
     courseworkService.getAvailableStudents.mockRejectedValue(
       new Error('Coursework not found.')
     );
 
-    const req = mockReq('cw123', 'cls123');
+    const req = mockReq('cw123', 'team123');
     const res = mockRes();
 
     await getAvailableStudents(req, res);
@@ -116,13 +120,13 @@ describe('getAvailableStudents controller', () => {
     });
   });
 
-  // ── 400: invalid coursework ID — kept as defensive catch ────────────────
+  // ── 400: invalid coursework ID — defensive catch ─────────────────────────
   it('returns 400 when service throws invalid coursework ID format error', async () => {
     courseworkService.getAvailableStudents.mockRejectedValue(
       new Error('Invalid coursework ID format.')
     );
 
-    const req = mockReq('not-an-id', 'cls123');
+    const req = mockReq('not-an-id', 'team123');
     const res = mockRes();
 
     await getAvailableStudents(req, res);
@@ -140,7 +144,7 @@ describe('getAvailableStudents controller', () => {
       new Error('Database connection lost.')
     );
 
-    const req = mockReq('cw123', 'cls123');
+    const req = mockReq('cw123', 'team123');
     const res = mockRes();
 
     await getAvailableStudents(req, res);
