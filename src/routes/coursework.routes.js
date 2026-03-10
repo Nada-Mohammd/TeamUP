@@ -24,6 +24,13 @@ router.get(
   courseworkController.getCourseworkById,
 );
 
+router.get(
+  "/:courseworkId/available-students",
+  authenticate,
+  authorizeClassRole("member"),
+  courseworkController.getAvailableStudents,
+);
+
 router.patch(
   "/update/:courseworkId",
   authenticate,

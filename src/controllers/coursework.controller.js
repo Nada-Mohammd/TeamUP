@@ -207,9 +207,48 @@ const deleteCoursework = async (req, res) => {
   }
 };
 
+// GET /api/courseworks/:courseworkId/available-students
+const getAvailableStudents = async (req, res) => {
+  try {
+    const { courseworkId } = req.params;
+    const { classId } = req;
+    const availableStudents =
+      await courseworkService.getAvailableStudents(courseworkId, classId);
+
+    // Empty array is a valid response — all students have joined teams
+    return res.status(200).json({
+      success: true,
+      count: availableStudents.length,
+      data: availableStudents,
+      ...(availableStudents.length === 0 && {
+        message: "All students in this class have already joined a team.",
+      }),
+    });
+  } catch (err) {
+    if (err.message === "Invalid coursework ID format.") {
+      return res.status(400).json({ success: false, message: err.message });
+    }
+
+    if (err.message === "Coursework not found.") {
+      return res.status(404).json({ success: false, message: err.message });
+    }
+
+    if (err.message === "No students are enrolled in this class.") {
+      return res.status(404).json({ success: false, message: err.message });
+    }
+
+    // Unexpected error
+    return res.status(500).json({
+      success: false,
+      message: "An unexpected error occurred. Please try again later.",
+    });
+  }
+};
+
 module.exports = {
   createCoursework,
   getCourseworkById,
   updateCoursework,
   deleteCoursework,
+  getAvailableStudents,
 };
