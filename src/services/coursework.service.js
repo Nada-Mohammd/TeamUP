@@ -295,7 +295,7 @@ const deleteCoursework = async (courseworkId, instructorId) => {
 };
 
 // GET /coursework/:id/students/available
-const getAvailableStudents = async (courseworkId, classId) => {
+const getAvailableStudents = async (courseworkId, classId, userId, teamId) => {
 
   // ── 1. Get all students enrolled in the class
   const studentProfiles = await ClassProfile.find({ classId, classRole: "member" })
@@ -308,44 +308,33 @@ const getAvailableStudents = async (courseworkId, classId) => {
 
   const allStudentIds = studentProfiles.map((p) => p.userId);
 
-  // ── 2. Get all teams created for this specific coursework
+  // ── 2. Get all studentIds that are members of any team for this coursework
   const teams = await Team.find({ courseworkId }).select("_id").lean();
+  const teamIds = teams.map((t) => t._id);
 
   let studentIdsInTeams = [];
-
-  if (teams.length > 0) {
-    const teamIds = teams.map((t) => t._id);
-
-    // ── 3. Get all studentIds that are members of those teams
-    const teamMembers = await TeamMember.find({
-      teamId: { $in: teamIds },
-    })
+  if (teamIds.length > 0) {
+    const teamMembers = await TeamMember.find({ teamId: { $in: teamIds } })
       .select("studentId")
       .lean();
-
-    // Build a Set for O(1) lookup when filtering
     studentIdsInTeams = teamMembers.map((m) => m.studentId.toString());
   }
 
   const teamsSet = new Set(studentIdsInTeams);
 
-  // ── 4. Filter out students who are already in a team
+  // ── 3. Filter out students who are already in a team
   const availableStudentIds = allStudentIds.filter(
     (id) => !teamsSet.has(id.toString()),
   );
 
   if (availableStudentIds.length === 0) return [];
 
-  // ── 5. Fetch user details for the available students
-  //    StudentProfile already has all needed fields denormalized + profile_picture,
-  //    so no need to query User separately.
+  // ── 4. Fetch user and profile details for available students
   const users = await User.find({ _id: { $in: availableStudentIds }, role: "Student" })
     .select("_id first_name last_name email")
     .lean();
 
-  const profiles = await StudentProfile.find({
-    user_id: { $in: availableStudentIds },
-  })
+  const profiles = await StudentProfile.find({ user_id: { $in: availableStudentIds } })
     .select("user_id profile_picture")
     .lean();
 
@@ -353,19 +342,37 @@ const getAvailableStudents = async (courseworkId, classId) => {
     profiles.map((p) => [p.user_id.toString(), p.profile_picture])
   );
 
+  // ── 5. Build student list with invitation_status defaulting to null
   const availableStudents = users.map((u) => ({
     user_id: u._id,
     first_name: u.first_name,
     last_name: u.last_name,
     email: u.email,
     profile_picture: profileMap.get(u._id.toString()) ?? null,
+    invitation_status: null,
   }));
 
-  // const availableStudents = await StudentProfile.find({
-  //   user_id: { $in: availableStudentIds },
-  // })
-  //   .select("user_id first_name last_name email profile_picture")
-  //   .lean();
+  // ── 6. Fetch invitations sent by requesting user from their specific team
+  //    teamId is scoped to this exact team — no cross-coursework bleed possible.
+  const invitations = await TeamJoinRequest.find({
+    teamId,
+    senderId: userId,
+    receiverId: { $in: availableStudentIds },
+    flowType: "LEADER_INVITATION",
+  })
+    .select("receiverId status")
+    .lean();
+
+  if (invitations.length > 0) {
+    const invitationMap = new Map(
+      invitations.map((inv) => [inv.receiverId.toString(), inv.status])
+    );
+
+    for (const student of availableStudents) {
+      const status = invitationMap.get(student.user_id.toString());
+      if (status) student.invitation_status = status;
+    }
+  }
 
   return availableStudents;
 };

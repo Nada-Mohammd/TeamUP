@@ -25,7 +25,7 @@ router.get(
 );
 
 router.get(
-  "/:courseworkId/available-students",
+  "/:courseworkId/available-students/:teamId",
   authenticate,
   authorizeClassRole("member"),
   courseworkController.getAvailableStudents,
