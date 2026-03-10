@@ -307,7 +307,6 @@ const getAvailableStudents = async (courseworkId, classId) => {
   }
 
   const allStudentIds = studentProfiles.map((p) => p.userId);
-  console.log("All student IDs in class:", allStudentIds);
 
   // ── 2. Get all teams created for this specific coursework
   const teams = await Team.find({ courseworkId }).select("_id").lean();
@@ -329,20 +328,18 @@ const getAvailableStudents = async (courseworkId, classId) => {
   }
 
   const teamsSet = new Set(studentIdsInTeams);
-  console.log("Teams: ", teamsSet);
 
   // ── 4. Filter out students who are already in a team
   const availableStudentIds = allStudentIds.filter(
     (id) => !teamsSet.has(id.toString()),
   );
-  console.log("Available student IDs:", availableStudentIds);
 
   if (availableStudentIds.length === 0) return [];
 
   // ── 5. Fetch user details for the available students
   //    StudentProfile already has all needed fields denormalized + profile_picture,
   //    so no need to query User separately.
-  const users = await User.find({ _id: { $in: availableStudentIds } })
+  const users = await User.find({ _id: { $in: availableStudentIds }, role: "Student" })
     .select("_id first_name last_name email")
     .lean();
 
