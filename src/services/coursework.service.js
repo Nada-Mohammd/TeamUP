@@ -7,6 +7,7 @@ const Class = require("../models/Class");
 const StudentProfile = require("../models/StudentProfile");
 const Team = require("../models/Team");
 const TeamMember = require("../models/TeamMembers");
+const TeamJoinRequest = require("../models/TeamJoinRequest");
 const mongoose = require("mongoose");
 
 const createCoursework = async (instructorId, classId, data) => {
@@ -354,6 +355,8 @@ const getAvailableStudents = async (courseworkId, classId, userId, teamId) => {
 
   // ── 6. Fetch invitations sent by requesting user from their specific team
   //    teamId is scoped to this exact team — no cross-coursework bleed possible.
+  console.log("user id", userId);
+  console.log("team id", teamId);
   const invitations = await TeamJoinRequest.find({
     teamId,
     senderId: userId,
@@ -363,10 +366,14 @@ const getAvailableStudents = async (courseworkId, classId, userId, teamId) => {
     .select("receiverId status")
     .lean();
 
+  console.log("Invitations found:", invitations.length, invitations);
+
   if (invitations.length > 0) {
     const invitationMap = new Map(
       invitations.map((inv) => [inv.receiverId.toString(), inv.status])
     );
+
+    console.log("Invitation Map:", invitationMap);
 
     for (const student of availableStudents) {
       const status = invitationMap.get(student.user_id.toString());

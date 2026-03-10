@@ -212,7 +212,7 @@ const getAvailableStudents = async (req, res) => {
   try {
     const { courseworkId, teamId } = req.params;
     const { classId } = req;
-    const userId = req.user_id;
+    const userId = req.user.id;
 
     const availableStudents = await courseworkService.getAvailableStudents(
       courseworkId,
