@@ -68,12 +68,6 @@ router.patch(
   classController.respondToInvitation,
 );
 
-router.get(
-  "/:classId/count-members",
-  authenticate,
-  classController.getClassMemberCount,
-);
-
 router.get("/:classId/members", authenticate, classController.getClassMembers);
 
 router.get(
@@ -95,7 +89,7 @@ router.patch(
   authenticate,
   authorize("Instructor"),
   authorizeClassRole("admin"),
-  classController.assignInstructorAsAdmin
+  classController.assignInstructorAsAdmin,
 );
 
 module.exports = router;

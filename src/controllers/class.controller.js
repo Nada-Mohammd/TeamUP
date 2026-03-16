@@ -1,6 +1,3 @@
-const { get } = require("mongoose");
-const Class = require("../models/Class");
-const ClassProfile = require("../models/ClassProfile");
 const classService = require("../services/class.service");
 
 // GET api/classes/:userId
@@ -206,29 +203,6 @@ const respondToInvitation = async (req, res) => {
   }
 };
 
-// GET /api/classes/:classId/members/count
-const getClassMemberCount = async (req, res) => {
-  try {
-    const { classId } = req.params;
-    const userId = req.user.id; // for authz (optional)
-
-    const memberCount = await classService.getClassMemberCount(classId);
-
-    res.status(200).json({
-      success: true,
-      data: {
-        classId,
-        memberCount,
-      },
-    });
-  } catch (err) {
-    res.status(400).json({
-      success: false,
-      message: err.message,
-    });
-  }
-};
-
 // GET /api/classes/:classId/members
 const getClassMembers = async (req, res) => {
   try {
@@ -284,17 +258,20 @@ const assignInstructorAsAdmin = async (req, res) => {
     const requesterId = req.user.id;
 
     // Call service
-    const classDoc = await require("../services/class.service").assignInstructorAsAdmin(
-      classId,
-      instructorId,
-      requesterId,
-      req.io,
-      require("../sockets/socket").onlineUsers
-    );
+    const classDoc =
+      await require("../services/class.service").assignInstructorAsAdmin(
+        classId,
+        instructorId,
+        requesterId,
+        req.io,
+        require("../sockets/socket").onlineUsers,
+      );
 
     // Fetch class details for course_code and class_color
     const ClassModel = require("../models/Class");
-    const classInfo = await ClassModel.findById(classId).select("course_code class_color");
+    const classInfo = await ClassModel.findById(classId).select(
+      "course_code class_color",
+    );
 
     res.status(classDoc.statusCode).json({
       success: true,
@@ -305,10 +282,9 @@ const assignInstructorAsAdmin = async (req, res) => {
         newRole: "admin",
         course_code: classInfo.course_code,
         class_color: classInfo.class_color,
-        assignedBy: classDoc.data.assignedBy
+        assignedBy: classDoc.data.assignedBy,
       },
     });
-
   } catch (error) {
     res.status(error.statusCode || 500).json({
       success: false,
@@ -327,8 +303,7 @@ module.exports = {
   inviteUser,
   joinClassByCode,
   respondToInvitation,
-  getClassMemberCount,
   getClassMembers,
   getClassPosts,
-  assignInstructorAsAdmin
+  assignInstructorAsAdmin,
 };

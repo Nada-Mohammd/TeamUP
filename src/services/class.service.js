@@ -10,9 +10,25 @@ const Post = require("../models/Post");
 const getClasses = async (userId) => {
   // Find all class profiles for the user
   const classProfiles = await ClassProfile.find({ userId }).populate("classId");
-  // Extract class details
-  const classes = classProfiles.map((profile) => profile.classId);
-  return classes;
+  // Extract class details and attach member statistics for each class
+  const classes = await Promise.all(
+    classProfiles.map(async (profile) => {
+      if (!profile.classId) return null;
+
+      const classData =
+        typeof profile.classId.toObject === "function"
+          ? profile.classId.toObject()
+          : profile.classId;
+      const memberStats = await getClassMemberCount(profile.classId._id);
+
+      return {
+        ...classData,
+        ...memberStats,
+      };
+    }),
+  );
+
+  return classes.filter(Boolean);
 };
 
 const createClass = async (instructorId, classData) => {
@@ -424,16 +440,26 @@ const respondToInvitation = async (invitationId, receiverId, action) => {
   }
 };
 
-// Main function: Get total member count
+// Internal helper: Get class member statistics
 const getClassMemberCount = async (classId) => {
-  // Optional: Validate class exists
-  const classExists = await Class.findById(classId);
-  if (!classExists) {
-    throw new Error("Class not found.");
-  }
+  const classProfiles = await ClassProfile.find({ classId }).populate({
+    path: "userId",
+    select: "role",
+  });
 
-  const count = await ClassProfile.countDocuments({ classId });
-  return count;
+  const instructorCount = classProfiles.filter(
+    (profile) => profile.userId?.role === "Instructor",
+  ).length;
+
+  const studentCount = classProfiles.filter(
+    (profile) => profile.userId?.role === "Student",
+  ).length;
+
+  return {
+    memberCount: classProfiles.length,
+    instructorCount,
+    studentCount,
+  };
 };
 
 const getClassMembers = async (classId, requesterId) => {
@@ -521,7 +547,7 @@ const assignInstructorAsAdmin = async (
   instructorId,
   requesterId,
   io,
-  onlineUsers
+  onlineUsers,
 ) => {
   // Validate class exists
   const classDoc = await Class.findById(classId);
@@ -554,7 +580,7 @@ const assignInstructorAsAdmin = async (
 
   if (instructor.role !== "Instructor") {
     const error = new Error(
-      "Only instructors can be assigned as class admins."
+      "Only instructors can be assigned as class admins.",
     );
     error.statusCode = 400;
     throw error;
@@ -567,9 +593,7 @@ const assignInstructorAsAdmin = async (
   });
 
   if (!membership) {
-    const error = new Error(
-      "Instructor must be a member of the class first."
-    );
+    const error = new Error("Instructor must be a member of the class first.");
     error.statusCode = 400;
     throw error;
   }
@@ -577,7 +601,7 @@ const assignInstructorAsAdmin = async (
   // Already admin
   if (membership.classRole === "admin") {
     const error = new Error(
-      "This instructor is already an admin of this class."
+      "This instructor is already an admin of this class.",
     );
     error.statusCode = 409;
     throw error;
@@ -587,8 +611,8 @@ const assignInstructorAsAdmin = async (
   membership.classRole = "admin";
   await membership.save();
   const requester = await User.findById(requesterId).select(
-  "_id first_name last_name username email"
-);
+    "_id first_name last_name username email",
+  );
 
   //Create notification
   const notification = await Notification.create({
@@ -609,22 +633,22 @@ const assignInstructorAsAdmin = async (
   }
 
   return {
-  statusCode: 200,
-  message: "Instructor promoted to admin successfully.",
-  data: {
-    classId,
-    instructorId,
-    newRole: "admin",
+    statusCode: 200,
+    message: "Instructor promoted to admin successfully.",
+    data: {
+      classId,
+      instructorId,
+      newRole: "admin",
 
-    assignedBy: {
-      _id: requester._id,
-      first_name: requester.first_name,
-      last_name: requester.last_name,
-      username: requester.username,
-      email: requester.email,
+      assignedBy: {
+        _id: requester._id,
+        first_name: requester.first_name,
+        last_name: requester.last_name,
+        username: requester.username,
+        email: requester.email,
+      },
     },
-  },
-};
+  };
 };
 
 module.exports = {
@@ -637,8 +661,7 @@ module.exports = {
   createInvitation,
   joinClassByCode,
   respondToInvitation,
-  getClassMemberCount,
   getClassMembers,
   getClassPosts,
-  assignInstructorAsAdmin
+  assignInstructorAsAdmin,
 };
