@@ -651,6 +651,58 @@ const assignInstructorAsAdmin = async (
   };
 };
 
+const leaveClass = async (classId, userId) => {
+
+  const membership = await ClassProfile.findOne({
+    classId,
+    userId
+  });
+
+  if (!membership) {
+    throw new Error("You are not a member of this class.");
+  }
+
+  await ClassProfile.deleteOne({
+    classId,
+    userId
+  });
+
+  return true;
+};
+
+const removeStudent = async (classId, studentId, requesterId) => {
+
+  const requester = await ClassProfile.findOne({
+    classId,
+    userId: requesterId,
+    classRole: "admin"
+  });
+
+  if (!requester) {
+    throw new Error("Only admins can remove students.");
+  }
+
+  const studentMembership = await ClassProfile.findOne({
+    classId,
+    userId: studentId
+  });
+
+  if (!studentMembership) {
+    throw new Error("Student is not a member of this class.");
+  }
+
+  if (studentMembership.classRole === "admin") {
+    throw new Error("Cannot remove another admin.");
+  }
+
+  await ClassProfile.deleteOne({
+    classId,
+    userId: studentId
+  });
+
+  return true;
+};
+
 module.exports = {
   getClasses,
   createClass,
@@ -664,4 +716,6 @@ module.exports = {
   getClassMembers,
   getClassPosts,
   assignInstructorAsAdmin,
+  leaveClass,
+  removeStudent
 };

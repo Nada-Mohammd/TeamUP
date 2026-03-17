@@ -293,6 +293,51 @@ const assignInstructorAsAdmin = async (req, res) => {
   }
 };
 
+// DELETE /api/classes/:classId/members/me
+const leaveClass = async (req, res) => {
+  try {
+    const { classId } = req.params;
+    const userId = req.user.id;
+
+    await classService.leaveClass(classId, userId);
+
+    res.status(200).json({
+      success: true,
+      message: "You have successfully left the class."
+    });
+
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      message: err.message
+    });
+  }
+};
+
+// DELETE /api/classes/:classId/members/:studentId
+const removeStudent = async (req, res) => {
+  try {
+
+    const { classId, studentId } = req.params;
+    const requesterId = req.user.id;
+
+    await classService.removeStudent(classId, studentId, requesterId);
+
+    res.status(200).json({
+      success: true,
+      message: "Student removed from class successfully."
+    });
+
+  } catch (err) {
+
+    res.status(400).json({
+      success: false,
+      message: err.message
+    });
+
+  }
+};
+
 module.exports = {
   getClasses,
   createClass,
@@ -306,4 +351,6 @@ module.exports = {
   getClassMembers,
   getClassPosts,
   assignInstructorAsAdmin,
+  leaveClass,
+  removeStudent
 };

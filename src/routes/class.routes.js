@@ -92,4 +92,21 @@ router.patch(
   classController.assignInstructorAsAdmin,
 );
 
+///api/classes/:classId/members/me
+router.delete(
+  "/:classId/members/me",
+  authenticate,
+  authorize("Student"),
+  classController.leaveClass
+);
+
+//// DELETE /api/classes/:classId/members/:studentId
+router.delete(
+  "/:classId/members/:studentId",
+  authenticate,
+  authorize("Instructor"),
+  authorizeClassRole("admin"),
+  classController.removeStudent
+);
+
 module.exports = router;
