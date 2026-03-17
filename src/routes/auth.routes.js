@@ -12,10 +12,16 @@ const router = express.Router();
 const { register } = require("../controllers/auth.controller");
 const { login } = require("../controllers/auth.controller");
 const { google } = require("../controllers/auth.controller");
+const { forgotPassword } = require("../controllers/auth.controller");
+const { verifyResetOtp } = require("../controllers/auth.controller");
+const { resetPassword } = require("../controllers/auth.controller");
 
 //router.post('/register', register);
 router.post("/login", login);
 router.post("/register", register);
 router.post("/google", google);
+router.post("/forgot-password", forgotPassword);
+router.post("/verify-reset-otp", verifyResetOtp);
+router.patch("/reset-password", resetPassword);
 
 module.exports = router;

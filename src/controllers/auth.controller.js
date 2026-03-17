@@ -1,7 +1,13 @@
 const User = require("../models/User");
 const axios = require("axios");
 const jwt = require("jsonwebtoken");
-const { registerUser, googleAuth } = require("../services/auth.service");
+const {
+  registerUser,
+  googleAuth,
+  requestPasswordResetOtp,
+  verifyPasswordResetOtp,
+  resetPasswordWithVerificationToken,
+} = require("../services/auth.service");
 const { createSendToken } = require("../utils/authUtils");
 
 // POST /api/auth/register
@@ -119,7 +125,98 @@ const google = async (req, res) => {
     console.error("Google auth error:", err);
     return res
       .status(err.status || 500)
-      .json({ status: "fail", message: err.message || "Google authentication failed" });
+      .json({
+        status: "fail",
+        message: err.message || "Google authentication failed",
+      });
+  }
+};
+
+// POST /api/auth/forgot-password
+const forgotPassword = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        status: "fail",
+        message: "Please provide an email.",
+      });
+    }
+
+    await requestPasswordResetOtp(email);
+
+    return res.status(200).json({
+      status: "success",
+      message: "If the email exists, an OTP has been sent.",
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+// POST /api/auth/verify-reset-otp
+const verifyResetOtp = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json({
+        status: "fail",
+        message: "Please provide email and otp.",
+      });
+    }
+
+    const verificationToken = await verifyPasswordResetOtp({ email, otp });
+
+    return res.status(200).json({
+      status: "success",
+      message: "OTP verified successfully.",
+      verificationToken,
+    });
+  } catch (error) {
+    return res.status(400).json({
+      status: "fail",
+      message: error.message || "Invalid or expired OTP.",
+    });
+  }
+};
+
+// POST /api/auth/reset-password
+const resetPassword = async (req, res) => {
+  try {
+    const { email, newPassword, confirmPassword, verificationToken } = req.body;
+
+    if (!email || !newPassword || !confirmPassword || !verificationToken) {
+      return res.status(400).json({
+        status: "fail",
+        message:
+          "Please provide email, verificationToken, newPassword and confirmPassword.",
+      });
+    }
+
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({
+        status: "fail",
+        message: "Passwords do not match.",
+      });
+    }
+
+    await resetPasswordWithVerificationToken({
+      email,
+      newPassword,
+      verificationToken,
+    });
+
+    return res.status(200).json({
+      status: "success",
+      message: "Password reset successful.",
+    });
+  } catch (error) {
+    return res.status(400).json({
+      status: "fail",
+      message: error.message || "Password reset failed.",
+    });
   }
 };
 
@@ -127,4 +224,7 @@ module.exports = {
   login,
   register,
   google,
+  forgotPassword,
+  verifyResetOtp,
+  resetPassword,
 };
