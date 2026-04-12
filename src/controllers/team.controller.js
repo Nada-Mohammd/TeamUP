@@ -221,6 +221,34 @@ const getStudentTeams = async (req, res) => {
   }
 };
 
+const getInstructorTeams = async (req, res) => {
+    try {
+    const { instructorId } = req.params;
+    const { classCode } = req.query;
+
+    // Security: instructor can only access his own teams
+    if (req.user.id !== instructorId) {
+      return res.status(403).json({
+        success: false,
+        message: "You can only access your own teams.",
+      });
+    }
+
+    const teams = await teamService.getInstructorTeams(instructorId, classCode);
+
+    return res.status(200).json({
+      success: true,
+      data: teams,
+    });
+  } catch (err) {
+    const status = err.statusCode || 500;
+    return res.status(status).json({
+      success: false,
+      message: err.message || "Internal server error",
+    });
+  }
+}
+
 module.exports = {
   createTeam,
   lockTeam,
@@ -231,4 +259,5 @@ module.exports = {
   respondToTeamInvitation,
   getTeamDetails,
   getStudentTeams,
+  getInstructorTeams,
 };

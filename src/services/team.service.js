@@ -318,6 +318,67 @@ const getStudentTeams = async (studentId, courseCode) => {
   return result;
 };
 
+const getInstructorTeams = async (instructorId, courseCode) => {
+    // Validate instructor exists
+  const instructor = await User.findById(instructorId);
+  if (!instructor) {
+    throw { message: "Instructor not found.", statusCode: 404 };
+  }
+
+  if (instructor.role !== "Instructor") {
+    throw {
+      message: "Only instructors can have access",
+      statusCode: 403,
+    };
+  }
+
+  // Get all team memberships for this instructor
+  const memberships = await TeamMember.find({ instructorId }).populate({
+    path: "teamId",
+    populate: [
+      {
+        path: "classId",
+        model: "Class",
+        select: "course_code class_code class_color",
+      },
+      {
+        path: "courseworkId",
+        model: "Coursework",
+        select: "name",
+      },
+    ],
+  });
+
+  if (!memberships.length) {
+    return [];
+  }
+
+  const result = memberships
+    .filter((m) => m.teamId)
+    .filter((m) => {
+      if (!courseCode) return true;
+
+      return (
+        m.teamId.classId &&
+        m.teamId.classId.course_code === courseCode.toUpperCase()
+      );
+    })
+    .map((m) => ({
+      teamId: m.teamId._id,
+      courseworkId: m.teamId.courseworkId?._id || null,
+      classId: m.teamId.classId?._id || null,
+
+      courseCode: m.teamId.classId?.course_code || null,
+      classCode: m.teamId.classId?.class_code || null,
+      classColor: m.teamId.classId?.class_color || "#FFFFFF",
+
+      teamName: m.teamId.name,
+      courseworkName: m.teamId.courseworkId?.name || null,
+    }));
+
+  return result;
+};
+
 const ensureStudentEligibleForTeam = async ({
   studentId,
   team,
@@ -847,6 +908,7 @@ module.exports = {
   getCourseworkTeams,
   getTeamDetails,
   getStudentTeams,
+  getInstructorTeams,
   sendJoinRequest,
   respondToJoinRequest,
   sendTeamInvitation,

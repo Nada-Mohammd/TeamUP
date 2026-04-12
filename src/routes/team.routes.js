@@ -33,6 +33,15 @@ router.get(
   authorize("Student"),
   teamController.getStudentTeams,
 );
+
+// GET instructor's own teams
+router.get(
+  "/instructors/:instructorId/teams",
+  authenticate,
+  authorize("Instructor"),
+  teamController.getInstructorTeams,
+);
+
 router.patch(
   "/:teamId/lock",
   authenticate,
