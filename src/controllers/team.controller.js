@@ -248,6 +248,33 @@ const getInstructorTeams = async (req, res) => {
     });
   }
 }
+// DELETE /api/teams/:teamId/members/:studentId/kick
+const kickStudentFromTeam = async (req, res) => {
+  try {
+    const { teamId, studentId } = req.params;
+    const instructorId = req.user.id;
+
+    await teamService.kickStudentFromTeam({
+      teamId,
+      studentId,
+      instructorId,
+      io: req.io,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Student kicked from team successfully.",
+    });
+
+  } catch (err) {
+    const status = err.statusCode || 400;
+
+    return res.status(status).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
 
 module.exports = {
   createTeam,
@@ -260,4 +287,6 @@ module.exports = {
   getTeamDetails,
   getStudentTeams,
   getInstructorTeams,
+  kickStudentFromTeam,
+
 };

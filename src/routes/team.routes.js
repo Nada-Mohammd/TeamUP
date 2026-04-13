@@ -77,4 +77,11 @@ router.patch(
   teamController.respondToTeamInvitation,
 );
 
+router.delete(
+  "/:teamId/members/:studentId/kick",
+  authenticate,
+  authorize("Instructor"),
+  teamController.kickStudentFromTeam,
+);
+
 module.exports = router;
