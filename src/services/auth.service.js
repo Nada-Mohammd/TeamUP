@@ -49,6 +49,7 @@ const registerUser = async (userData) => {
   if (role === "Student") {
     const profile = await StudentProfile.create({
       user_id: newUser._id,
+      email,
       username,
       first_name,
       last_name,

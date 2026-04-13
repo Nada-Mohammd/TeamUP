@@ -92,6 +92,27 @@ const studentProfileSchema = new Schema(
       required: true,
       trim: true,
       lowercase: true,
+      validate: {
+        validator: function (email) {
+          // If the user is a student, enforce the specific university email format.
+          if (this.role === "Student") {
+            // Regex: must be one or more digits, followed by the exact domain.
+            return /^[0-9]+@stud\.fci-cu\.edu\.eg$/.test(email);
+          }
+
+          // If the user is an 'Instructor' (or any other role),
+          // we'll just use the general email validation.
+          return /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(email);
+        },
+        // Provide a dynamic error message
+        message: function (props) {
+          // 'this' refers to the document being validated
+          if (this.role === "Student") {
+            return `Student email must be in the format: e.g., 20221175@stud.fci-cu.edu.eg`;
+          }
+          return `Please provide a valid email address.`;
+        },
+      },
     },
 
     gpa: {
