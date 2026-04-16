@@ -19,6 +19,13 @@ router.patch(
   teamController.lockTeam,
 );
 
+router.patch(
+  "/:teamId/assign-instructor",
+  authenticate,
+  authorize("Student"),
+  teamController.assignInstructorToTeam,
+);
+
 // GET team details
 router.get(
   "/courseworks/:courseworkId/teams/:teamId",

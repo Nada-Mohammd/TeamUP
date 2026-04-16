@@ -217,6 +217,111 @@ const getCourseworkTeams = async (classId, courseworkId, lockedQuery) => {
   }));
 };
 
+const assignInstructorToTeam = async ({ teamId, leaderId, instructorId }) => {
+  if (!instructorId) {
+    throw { message: "Instructor ID is required.", statusCode: 400 };
+  }
+
+  const team = await Team.findById(teamId).select(
+    "_id classId courseworkId instructorId",
+  );
+  if (!team) {
+    throw { message: "Team not found.", statusCode: 404 };
+  }
+
+  const leaderMembership = await TeamMember.findOne({
+    teamId,
+    studentId: leaderId,
+    role: "LEADER",
+  });
+  if (!leaderMembership) {
+    throw {
+      message: "Only the team leader can assign an instructor.",
+      statusCode: 403,
+    };
+  }
+
+  const coursework = await Coursework.findById(team.courseworkId).select(
+    "classId isDeleted",
+  );
+  if (!coursework || coursework.isDeleted) {
+    throw { message: "Coursework not found.", statusCode: 404 };
+  }
+
+  if (coursework.classId.toString() !== team.classId.toString()) {
+    throw {
+      message: "Team class does not match coursework class.",
+      statusCode: 400,
+    };
+  }
+
+  const instructor = await User.findById(instructorId).select(
+    "first_name last_name role",
+  );
+  if (!instructor) {
+    throw { message: "Instructor not found.", statusCode: 404 };
+  }
+
+  if (instructor.role !== "Instructor") {
+    throw {
+      message: "Selected user is not an instructor.",
+      statusCode: 400,
+    };
+  }
+
+  const instructorClassMembership = await ClassProfile.findOne({
+    classId: team.classId,
+    userId: instructorId,
+  });
+  if (!instructorClassMembership) {
+    throw {
+      message: "Selected instructor is not a member of this class.",
+      statusCode: 400,
+    };
+  }
+
+  // Atomic assignment: only succeeds if no instructor is assigned yet.
+  const updatedTeam = await Team.findOneAndUpdate(
+    {
+      _id: teamId,
+      instructorId: null,
+    },
+    {
+      $set: { instructorId },
+    },
+    { new: true },
+  )
+    .populate("instructorId", "first_name last_name")
+    .populate("courseworkId", "name")
+    .populate({
+      path: "classId",
+      model: "Class",
+      select: "course_name class_color class_code",
+    });
+
+  if (!updatedTeam) {
+    throw {
+      message: "An instructor is already assigned to this team.",
+      statusCode: 409,
+    };
+  }
+
+  return {
+    teamId: updatedTeam._id,
+    teamName: updatedTeam.name,
+    instructor: updatedTeam.instructorId
+      ? {
+          id: updatedTeam.instructorId._id,
+          name: `${updatedTeam.instructorId.first_name} ${updatedTeam.instructorId.last_name}`,
+        }
+      : null,
+    courseworkName: updatedTeam.courseworkId?.name || null,
+    className: updatedTeam.classId?.course_name || null,
+    classColor: updatedTeam.classId?.class_color || "#FFFFFF",
+    classCode: updatedTeam.classId?.class_code || null,
+  };
+};
+
 const getTeamDetails = async (courseworkId, teamId) => {
   const team = await Team.findOne({
     _id: teamId,
@@ -320,7 +425,7 @@ const getStudentTeams = async (studentId, courseCode) => {
 };
 
 const getInstructorTeams = async (instructorId, courseCode) => {
-    // Validate instructor exists
+  // Validate instructor exists
   const instructor = await User.findById(instructorId);
   if (!instructor) {
     throw { message: "Instructor not found.", statusCode: 404 };
@@ -903,14 +1008,7 @@ const respondToTeamInvitation = async ({ invitationId, studentId, action }) => {
   return { success: true, status: "REJECTED" };
 };
 
-
-
-const kickStudentFromTeam = async ({
-  teamId,
-  studentId,
-  instructorId,
-}) => {
-
+const kickStudentFromTeam = async ({ teamId, studentId, instructorId }) => {
   //Check team exists
   const team = await Team.findById(teamId);
   if (!team) {
@@ -920,13 +1018,8 @@ const kickStudentFromTeam = async ({
   }
 
   //Check instructor is assigned to this team
-  if (
-    !team.instructorId ||
-    team.instructorId.toString() !== instructorId
-  ) {
-    const err = new Error(
-      "You are not assigned as instructor for this team."
-    );
+  if (!team.instructorId || team.instructorId.toString() !== instructorId) {
+    const err = new Error("You are not assigned as instructor for this team.");
     err.statusCode = 403;
     throw err;
   }
@@ -948,7 +1041,7 @@ const kickStudentFromTeam = async ({
 
   if (daysRemaining <= 5) {
     const err = new Error(
-      "Cannot remove student when 5 days or less remain before deadline."
+      "Cannot remove student when 5 days or less remain before deadline.",
     );
     err.statusCode = 400;
     throw err;
@@ -957,7 +1050,7 @@ const kickStudentFromTeam = async ({
   //Check student is in team
   const member = await TeamMember.findOne({
     teamId,
-    studentId: studentId, 
+    studentId: studentId,
   });
 
   if (!member) {
@@ -968,29 +1061,29 @@ const kickStudentFromTeam = async ({
 
   // Check if the student being kicked is the leader
   const isLeader = member.role === "LEADER";
-  
+
   if (isLeader) {
     // Find other members in the team BEFORE removing the leader
     const otherMembers = await TeamMember.find({
       teamId,
-      studentId: { $ne: studentId },  // Exclude the student being kicked
+      studentId: { $ne: studentId }, // Exclude the student being kicked
     });
 
     if (otherMembers.length > 0) {
       // Randomly select a new leader
       const randomIndex = Math.floor(Math.random() * otherMembers.length);
       const newLeader = otherMembers[randomIndex];
-      
+
       // Update the new leader's role
       await TeamMember.findByIdAndUpdate(
         newLeader._id,
         { $set: { role: "LEADER" } },
-        { new: true }
+        { new: true },
       );
 
       // Get new leader info for notification
       const newLeaderUser = await User.findById(newLeader.studentId).select(
-        "first_name last_name email"
+        "first_name last_name email",
       );
 
       // Get class info
@@ -998,13 +1091,13 @@ const kickStudentFromTeam = async ({
 
       // Get instructor info for notification
       const instructor = await User.findById(instructorId).select(
-        "first_name last_name email"
+        "first_name last_name email",
       );
 
       // Notify the new leader
       await notificationService.createNotification({
         userId: newLeader.studentId,
-        type: "TEAM_LEADER_ASSIGNED", 
+        type: "TEAM_LEADER_ASSIGNED",
         message: `You have been assigned as the new leader of team "${team.name}" for the coursework "${coursework.name}".
 
 The previous team leader has been removed by the instructor.
@@ -1034,7 +1127,7 @@ Please coordinate with your team members to ensure smooth progress.`,
 
   // Get instructor info
   const instructor = await User.findById(instructorId).select(
-    "first_name last_name email"
+    "first_name last_name email",
   );
 
   const instructorName = `${instructor.first_name} ${instructor.last_name}`;
@@ -1057,11 +1150,11 @@ If you believe this action was made in error, please contact your instructor.`,
   return true;
 };
 
-
 module.exports = {
   createTeam,
   lockTeam,
   getCourseworkTeams,
+  assignInstructorToTeam,
   getTeamDetails,
   getStudentTeams,
   getInstructorTeams,
@@ -1069,6 +1162,5 @@ module.exports = {
   respondToJoinRequest,
   sendTeamInvitation,
   respondToTeamInvitation,
-  kickStudentFromTeam ,
-
+  kickStudentFromTeam,
 };

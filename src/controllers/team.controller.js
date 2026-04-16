@@ -45,6 +45,33 @@ const lockTeam = async (req, res) => {
   }
 };
 
+// PATCH /api/teams/:teamId/assign-instructor
+const assignInstructorToTeam = async (req, res) => {
+  try {
+    const { teamId } = req.params;
+    const leaderId = req.user.id;
+    const { instructorId } = req.body;
+
+    const result = await teamService.assignInstructorToTeam({
+      teamId,
+      leaderId,
+      instructorId,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Instructor assigned successfully.",
+      data: result,
+    });
+  } catch (err) {
+    const status = err.statusCode || 500;
+    return res.status(status).json({
+      success: false,
+      message: err.message || "Internal Server Error",
+    });
+  }
+};
+
 // GET /api/classes/:classId/courseworks/:courseworkId/teams?locked=false
 const getCourseworkTeams = async (req, res) => {
   try {
@@ -222,7 +249,7 @@ const getStudentTeams = async (req, res) => {
 };
 
 const getInstructorTeams = async (req, res) => {
-    try {
+  try {
     const { instructorId } = req.params;
     const { classCode } = req.query;
 
@@ -247,7 +274,7 @@ const getInstructorTeams = async (req, res) => {
       message: err.message || "Internal server error",
     });
   }
-}
+};
 // DELETE /api/teams/:teamId/members/:studentId/kick
 const kickStudentFromTeam = async (req, res) => {
   try {
@@ -265,7 +292,6 @@ const kickStudentFromTeam = async (req, res) => {
       success: true,
       message: "Student kicked from team successfully.",
     });
-
   } catch (err) {
     const status = err.statusCode || 400;
 
@@ -279,6 +305,7 @@ const kickStudentFromTeam = async (req, res) => {
 module.exports = {
   createTeam,
   lockTeam,
+  assignInstructorToTeam,
   getCourseworkTeams,
   sendJoinRequest,
   respondToJoinRequest,
@@ -288,5 +315,4 @@ module.exports = {
   getStudentTeams,
   getInstructorTeams,
   kickStudentFromTeam,
-
 };
