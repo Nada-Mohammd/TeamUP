@@ -508,6 +508,42 @@ const getClassMembers = async (classId, requesterId) => {
   };
 };
 
+const getClassInstructors = async (classId, requesterId) => {
+  const classExists = await Class.findById(classId);
+  if (!classExists) {
+    throw new Error("Class not found.");
+  }
+
+  const requesterMembership = await ClassProfile.findOne({
+    classId,
+    userId: requesterId,
+  });
+
+  if (!requesterMembership) {
+    throw new Error("You are not a member of this class.");
+  }
+
+  const classProfiles = await ClassProfile.find({ classId })
+    .populate({
+      path: "userId",
+      select: "first_name last_name username email role",
+    })
+    .sort({ joined_date: 1 });
+
+  return classProfiles
+    .filter((profile) => profile.userId?.role === "Instructor")
+    .map((profile) => ({
+      _id: profile.userId._id,
+      first_name: profile.userId.first_name,
+      last_name: profile.userId.last_name,
+      username: profile.userId.username,
+      email: profile.userId.email,
+      role: profile.userId.role,
+      classRole: profile.classRole,
+      joined_date: profile.joined_date,
+    }));
+};
+
 const getClassPosts = async (classId) => {
   // Validate class exists
   const classExists = await Class.findById(classId);
@@ -652,10 +688,9 @@ const assignInstructorAsAdmin = async (
 };
 
 const leaveClass = async (classId, userId) => {
-
   const membership = await ClassProfile.findOne({
     classId,
-    userId
+    userId,
   });
 
   if (!membership) {
@@ -664,18 +699,17 @@ const leaveClass = async (classId, userId) => {
 
   await ClassProfile.deleteOne({
     classId,
-    userId
+    userId,
   });
 
   return true;
 };
 
 const removeStudent = async (classId, studentId, requesterId) => {
-
   const requester = await ClassProfile.findOne({
     classId,
     userId: requesterId,
-    classRole: "admin"
+    classRole: "admin",
   });
 
   if (!requester) {
@@ -684,7 +718,7 @@ const removeStudent = async (classId, studentId, requesterId) => {
 
   const studentMembership = await ClassProfile.findOne({
     classId,
-    userId: studentId
+    userId: studentId,
   });
 
   if (!studentMembership) {
@@ -697,7 +731,7 @@ const removeStudent = async (classId, studentId, requesterId) => {
 
   await ClassProfile.deleteOne({
     classId,
-    userId: studentId
+    userId: studentId,
   });
 
   return true;
@@ -714,8 +748,9 @@ module.exports = {
   joinClassByCode,
   respondToInvitation,
   getClassMembers,
+  getClassInstructors,
   getClassPosts,
   assignInstructorAsAdmin,
   leaveClass,
-  removeStudent
+  removeStudent,
 };

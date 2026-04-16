@@ -71,6 +71,12 @@ router.patch(
 router.get("/:classId/members", authenticate, classController.getClassMembers);
 
 router.get(
+  "/:classId/instructors",
+  authenticate,
+  classController.getClassInstructors,
+);
+
+router.get(
   "/:classId/courseworks/:courseworkId/teams",
   authenticate,
   teamController.getCourseworkTeams,
@@ -97,7 +103,7 @@ router.delete(
   "/:classId/members/me",
   authenticate,
   authorize("Student"),
-  classController.leaveClass
+  classController.leaveClass,
 );
 
 //// DELETE /api/classes/:classId/members/:studentId
@@ -106,7 +112,7 @@ router.delete(
   authenticate,
   authorize("Instructor"),
   authorizeClassRole("admin"),
-  classController.removeStudent
+  classController.removeStudent,
 );
 
 module.exports = router;
