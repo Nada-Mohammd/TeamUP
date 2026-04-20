@@ -356,6 +356,7 @@ const getTeamDetails = async (courseworkId, teamId) => {
       : null,
     teamMembers,
     courseworkName: team.courseworkId?.name || null,
+    classId: team.classId?._id || null,
     className: team.classId?.course_name || null,
     classColor: team.classId?.class_color || "#FFFFFF",
     classCode: team.classId?.class_code || null,
