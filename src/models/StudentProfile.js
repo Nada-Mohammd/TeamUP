@@ -123,14 +123,13 @@ const studentProfileSchema = new Schema(
     },
 
     availability: {
-      type: [String],
+      type: String,
       enum: {
         values: ["morning", "evening", "night", "all day"],
         message: "{VALUE} is not a valid availability slot.",
       },
-      default: [],
+      default: null,
     },
-
     skills: {
       type: [String],
       default: [],
