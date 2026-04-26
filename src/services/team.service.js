@@ -8,6 +8,7 @@ const TeamJoinRequest = require("../models/TeamJoinRequest");
 const Notification = require("../models/Notification");
 const { onlineUsers, io } = require("../sockets/socket");
 const notificationService = require("./notification.service");
+const mongoose = require("mongoose");
 
 const createTeam = async (userId, teamData) => {
   const { name, courseworkId } = teamData;
@@ -426,11 +427,15 @@ const getStudentTeams = async (studentId, courseCode) => {
 };
 
 const getInstructorTeams = async (instructorId, courseCode) => {
+
   // Validate instructor exists
   const instructor = await User.findById(instructorId);
+
   if (!instructor) {
     throw { message: "Instructor not found.", statusCode: 404 };
   }
+
+  console.log("Instructor role:", instructor.role);
 
   if (instructor.role !== "Instructor") {
     throw {
@@ -439,48 +444,50 @@ const getInstructorTeams = async (instructorId, courseCode) => {
     };
   }
 
-  // Get all team memberships for this instructor
-  const memberships = await TeamMember.find({ instructorId }).populate({
-    path: "teamId",
-    populate: [
-      {
-        path: "classId",
-        model: "Class",
-        select: "course_code class_code class_color",
-      },
-      {
-        path: "courseworkId",
-        model: "Coursework",
-        select: "name",
-      },
-    ],
-  });
+  // Get memberships
+  const memberships = await Team.find({
+    instructorId: instructorId,
+  }).populate([
+    {
+      path: "classId",
+      model: "Class",
+      select: "course_code class_code class_color",
+    },
+    {
+      path: "courseworkId",
+      model: "Coursework",
+      select: "name",
+    },
+  ]);
 
   if (!memberships.length) {
     return [];
   }
 
   const result = memberships
-    .filter((m) => m.teamId)
+    .filter((m) => {
+      const valid = !!m.classId;
+      return valid;
+    })
     .filter((m) => {
       if (!courseCode) return true;
 
-      return (
-        m.teamId.classId &&
-        m.teamId.classId.course_code === courseCode.toUpperCase()
-      );
+      const match =
+        m.classId && m.classId.course_code === courseCode.toUpperCase();
+
+      return match;
     })
     .map((m) => ({
-      teamId: m.teamId._id,
-      courseworkId: m.teamId.courseworkId?._id || null,
-      classId: m.teamId.classId?._id || null,
+      teamId: m._id,
+      courseworkId: m.courseworkId?._id || null,
+      classId: m.classId?._id || null,
 
-      courseCode: m.teamId.classId?.course_code || null,
-      classCode: m.teamId.classId?.class_code || null,
-      classColor: m.teamId.classId?.class_color || "#FFFFFF",
+      courseCode: m.classId?.course_code || null,
+      classCode: m.classId?.class_code || null,
+      classColor: m.classId?.class_color || "#FFFFFF",
 
-      teamName: m.teamId.name,
-      courseworkName: m.teamId.courseworkId?.name || null,
+      teamName: m.name,
+      courseworkName: m.courseworkId?.name || null,
     }));
 
   return result;
