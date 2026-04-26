@@ -1,23 +1,25 @@
 function normalizeSkills(skills = []) {
+  if (!Array.isArray(skills)) return [];
+
   return skills
     .map((skill) =>
       String(skill || "")
         .trim()
-        .toLowerCase(),
+        .toLowerCase()
     )
     .filter(Boolean);
 }
 
 function getMissingSkills(requiredSkills = [], coveredSkills = []) {
-  const required = [...new Set(normalizeSkills(requiredSkills))];
-  const covered = new Set(normalizeSkills(coveredSkills));
+  const required = [...new Set(normalizeSkills(requiredSkills || []))];
+  const covered = new Set(normalizeSkills(coveredSkills || []));
 
   return required.filter((skill) => !covered.has(skill));
 }
 
 function getMatchedSkills(studentSkills = [], targetSkills = []) {
-  const studentSet = new Set(normalizeSkills(studentSkills));
-  const target = [...new Set(normalizeSkills(targetSkills))];
+  const studentSet = new Set(normalizeSkills(studentSkills || []));
+  const target = [...new Set(normalizeSkills(targetSkills || []))];
 
   return target.filter((skill) => studentSet.has(skill));
 }
@@ -26,7 +28,9 @@ function normalizeAvailability(value) {
   if (!value) return [];
 
   if (Array.isArray(value)) {
-    return value.map((a) => String(a).trim().toLowerCase()).filter(Boolean);
+    return value
+      .map((a) => String(a || "").trim().toLowerCase())
+      .filter(Boolean);
   }
 
   return [String(value).trim().toLowerCase()].filter(Boolean);
@@ -55,12 +59,12 @@ function getAvailabilityCompatibility(
 }
 
 function getRatingScore(ratings = []) {
-  if (!ratings.length) {
+  if (!Array.isArray(ratings) || ratings.length === 0) {
     return 0.5;
   }
 
   const average =
-    ratings.reduce((sum, rating) => sum + Number(rating.stars || 0), 0) /
+    ratings.reduce((sum, rating) => sum + Number(rating?.stars || 0), 0) /
     ratings.length;
 
   return Math.min(Math.max(average / 5, 0), 1);
@@ -80,20 +84,20 @@ function calculateCandidateScore(
   creatorProfile,
 ) {
   const matchedSkills = getMatchedSkills(
-    candidateProfile.skills || [],
-    skillsNeeded,
+    candidateProfile?.skills || [],
+    skillsNeeded || []
   );
 
   const skillScore =
     skillsNeeded.length === 0 ? 1 : matchedSkills.length / skillsNeeded.length;
 
   const availabilityScore = getAvailabilityCompatibility(
-    creatorProfile.availability || [],
-    candidateProfile.availability || [],
+    creatorProfile?.availability || [],
+    candidateProfile?.availability || []
   );
 
-  const ratingScore = getRatingScore(candidateProfile.ratings || []);
-  const gpaScore = getGpaScore(candidateProfile.gpa);
+  const ratingScore = getRatingScore(candidateProfile?.ratings || []);
+  const gpaScore = getGpaScore(candidateProfile?.gpa);
 
   const finalScore =
     skillScore * 0.6 +
@@ -114,8 +118,10 @@ function calculateCandidateScore(
 }
 
 function buildCandidateReason(candidateProfile, matchedSkills = []) {
-  const availability = candidateProfile.availability?.length
-    ? candidateProfile.availability.join(", ")
+  const availabilityArr = normalizeAvailability(candidateProfile?.availability);
+
+  const availability = availabilityArr.length
+    ? availabilityArr.join(", ")
     : "not specified";
 
   if (matchedSkills.length > 0) {
