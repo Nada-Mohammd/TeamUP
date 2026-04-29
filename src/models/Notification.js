@@ -32,7 +32,11 @@ const notificationSchema = new Schema(
         "TEAM_INVITATION",           // Student invited to join team
         "TEAM_JOIN_REQUEST",         // Leader notified of join request
         "TEAM_REQUEST_ACCEPTED",     // Student notified their request was accepted
-        "TEAM_REQUEST_REJECTED",     // Student notified their request was rejected
+        "TEAM_REQUEST_REJECTED", // Student notified their request was rejected
+        "TEAM_MEMBER_REMOVED",
+        "TEAM_LEADER_ASSIGNED",
+        
+
       ],
       index: true,
     },

@@ -9,29 +9,31 @@
  * * to prevent the server from crashing.
  */
 
-const express = require('express');
+const express = require("express");
 const router = express.Router();
 
 // 1. Import all your feature routers
-const authRoutes = require('./auth.routes');
-const classRoutes = require('./class.routes');
-const notificationRoutes = require('./notification.routes');
-const courseworks=require('./coursework.routes')
-const announcementRoutes = require('./announcement.routes');
-const teamRoutes = require('./team.routes');
-const profileRoutes = require('./profile.routes');
+const authRoutes = require("./auth.routes");
+const classRoutes = require("./class.routes");
+const notificationRoutes = require("./notification.routes");
+const courseworks = require("./coursework.routes");
+const announcementRoutes = require("./announcement.routes");
+const teamRoutes = require("./team.routes");
+const profileRoutes = require("./profile.routes");
 // const workspaceRoutes = require('./workspace.routes');
 // const projectRoutes = require('./project.routes');
 // const taskRoutes = require('./task.routes');
+const aiCourseworkRoutes = require("./aiCoursework.routes");
 
+router.use("/ai", aiCourseworkRoutes);
 // 2. Mount them on their base paths
-router.use('/auth', authRoutes); 
-router.use('/classes', classRoutes);
-router.use('/notifications', notificationRoutes);
-router.use('/courseworks', courseworks);
-router.use('/announcements', announcementRoutes);
-router.use('/teams', teamRoutes);
-router.use('/profile', profileRoutes);
+router.use("/auth", authRoutes);
+router.use("/classes", classRoutes);
+router.use("/notifications", notificationRoutes);
+router.use("/courseworks", courseworks);
+router.use("/announcements", announcementRoutes);
+router.use("/teams", teamRoutes);
+router.use("/profile", profileRoutes);
 // --- COMMENTED OUT ---
 // router.use('/workspaces', workspaceRoutes);
 // router.use('/projects', projectRoutes);

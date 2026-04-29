@@ -19,6 +19,13 @@ router.patch(
   teamController.lockTeam,
 );
 
+router.patch(
+  "/:teamId/assign-instructor",
+  authenticate,
+  authorize("Student"),
+  teamController.assignInstructorToTeam,
+);
+
 // GET team details
 router.get(
   "/courseworks/:courseworkId/teams/:teamId",
@@ -75,6 +82,13 @@ router.patch(
   authenticate,
   authorize("Student"),
   teamController.respondToTeamInvitation,
+);
+
+router.delete(
+  "/:teamId/members/:studentId/kick",
+  authenticate,
+  authorize("Instructor"),
+  teamController.kickStudentFromTeam,
 );
 
 module.exports = router;

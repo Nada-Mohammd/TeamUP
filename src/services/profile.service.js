@@ -3,6 +3,7 @@ const StudentProfile = require("../models/StudentProfile");
 const User = require("../models/User");
 const { editProfileSchema } = require("../utils/Schemas/profile.schema");
 const { deleteFromCloudinary } = require("../middlewares/upload");
+const { normalizeSkillsWithAI } = require("./skillNormalization.service");
 
 // get a student's profile by their user ID
 const getProfileByUserId = async (userId) => {
@@ -14,6 +15,30 @@ const getProfileByUserId = async (userId) => {
 
   return profile;
 };
+
+async function updateProfileSkills(userId, skills) {
+  if (!Array.isArray(skills)) {
+    const error = new Error("skills must be an array");
+    error.status = 400;
+    throw error;
+  }
+
+  const normalizedSkills = await normalizeSkillsWithAI(skills);
+
+  const profile = await StudentProfile.findOneAndUpdate(
+    { user_id: userId },
+    { skills: normalizedSkills },
+    { new: true, runValidators: true },
+  );
+
+  if (!profile) {
+    const error = new Error("Profile not found");
+    error.status = 404;
+    throw error;
+  }
+
+  return profile;
+}
 
 // edit a student's profile
 async function editProfile(userId, body, files) {
@@ -120,4 +145,4 @@ async function editProfile(userId, body, files) {
   return updated;
 }
 
-module.exports = { getProfileByUserId, editProfile };
+module.exports = { getProfileByUserId, editProfile, updateProfileSkills };

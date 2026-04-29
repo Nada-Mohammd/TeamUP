@@ -7,6 +7,8 @@ const User = require("../models/User");
 const TeamJoinRequest = require("../models/TeamJoinRequest");
 const Notification = require("../models/Notification");
 const { onlineUsers, io } = require("../sockets/socket");
+const notificationService = require("./notification.service");
+const mongoose = require("mongoose");
 
 const createTeam = async (userId, teamData) => {
   const { name, courseworkId } = teamData;
@@ -216,6 +218,111 @@ const getCourseworkTeams = async (classId, courseworkId, lockedQuery) => {
   }));
 };
 
+const assignInstructorToTeam = async ({ teamId, leaderId, instructorId }) => {
+  if (!instructorId) {
+    throw { message: "Instructor ID is required.", statusCode: 400 };
+  }
+
+  const team = await Team.findById(teamId).select(
+    "_id classId courseworkId instructorId",
+  );
+  if (!team) {
+    throw { message: "Team not found.", statusCode: 404 };
+  }
+
+  const leaderMembership = await TeamMember.findOne({
+    teamId,
+    studentId: leaderId,
+    role: "LEADER",
+  });
+  if (!leaderMembership) {
+    throw {
+      message: "Only the team leader can assign an instructor.",
+      statusCode: 403,
+    };
+  }
+
+  const coursework = await Coursework.findById(team.courseworkId).select(
+    "classId isDeleted",
+  );
+  if (!coursework || coursework.isDeleted) {
+    throw { message: "Coursework not found.", statusCode: 404 };
+  }
+
+  if (coursework.classId.toString() !== team.classId.toString()) {
+    throw {
+      message: "Team class does not match coursework class.",
+      statusCode: 400,
+    };
+  }
+
+  const instructor = await User.findById(instructorId).select(
+    "first_name last_name role",
+  );
+  if (!instructor) {
+    throw { message: "Instructor not found.", statusCode: 404 };
+  }
+
+  if (instructor.role !== "Instructor") {
+    throw {
+      message: "Selected user is not an instructor.",
+      statusCode: 400,
+    };
+  }
+
+  const instructorClassMembership = await ClassProfile.findOne({
+    classId: team.classId,
+    userId: instructorId,
+  });
+  if (!instructorClassMembership) {
+    throw {
+      message: "Selected instructor is not a member of this class.",
+      statusCode: 400,
+    };
+  }
+
+  // Atomic assignment: only succeeds if no instructor is assigned yet.
+  const updatedTeam = await Team.findOneAndUpdate(
+    {
+      _id: teamId,
+      instructorId: null,
+    },
+    {
+      $set: { instructorId },
+    },
+    { new: true },
+  )
+    .populate("instructorId", "first_name last_name")
+    .populate("courseworkId", "name")
+    .populate({
+      path: "classId",
+      model: "Class",
+      select: "course_name class_color class_code",
+    });
+
+  if (!updatedTeam) {
+    throw {
+      message: "An instructor is already assigned to this team.",
+      statusCode: 409,
+    };
+  }
+
+  return {
+    teamId: updatedTeam._id,
+    teamName: updatedTeam.name,
+    instructor: updatedTeam.instructorId
+      ? {
+          id: updatedTeam.instructorId._id,
+          name: `${updatedTeam.instructorId.first_name} ${updatedTeam.instructorId.last_name}`,
+        }
+      : null,
+    courseworkName: updatedTeam.courseworkId?.name || null,
+    className: updatedTeam.classId?.course_name || null,
+    classColor: updatedTeam.classId?.class_color || "#FFFFFF",
+    classCode: updatedTeam.classId?.class_code || null,
+  };
+};
+
 const getTeamDetails = async (courseworkId, teamId) => {
   const team = await Team.findOne({
     _id: teamId,
@@ -250,6 +357,7 @@ const getTeamDetails = async (courseworkId, teamId) => {
       : null,
     teamMembers,
     courseworkName: team.courseworkId?.name || null,
+    classId: team.classId?._id || null,
     className: team.classId?.course_name || null,
     classColor: team.classId?.class_color || "#FFFFFF",
     classCode: team.classId?.class_code || null,
@@ -319,11 +427,15 @@ const getStudentTeams = async (studentId, courseCode) => {
 };
 
 const getInstructorTeams = async (instructorId, courseCode) => {
-    // Validate instructor exists
+
+  // Validate instructor exists
   const instructor = await User.findById(instructorId);
+
   if (!instructor) {
     throw { message: "Instructor not found.", statusCode: 404 };
   }
+
+  console.log("Instructor role:", instructor.role);
 
   if (instructor.role !== "Instructor") {
     throw {
@@ -332,48 +444,50 @@ const getInstructorTeams = async (instructorId, courseCode) => {
     };
   }
 
-  // Get all team memberships for this instructor
-  const memberships = await TeamMember.find({ instructorId }).populate({
-    path: "teamId",
-    populate: [
-      {
-        path: "classId",
-        model: "Class",
-        select: "course_code class_code class_color",
-      },
-      {
-        path: "courseworkId",
-        model: "Coursework",
-        select: "name",
-      },
-    ],
-  });
+  // Get memberships
+  const memberships = await Team.find({
+    instructorId: instructorId,
+  }).populate([
+    {
+      path: "classId",
+      model: "Class",
+      select: "course_code class_code class_color",
+    },
+    {
+      path: "courseworkId",
+      model: "Coursework",
+      select: "name",
+    },
+  ]);
 
   if (!memberships.length) {
     return [];
   }
 
   const result = memberships
-    .filter((m) => m.teamId)
+    .filter((m) => {
+      const valid = !!m.classId;
+      return valid;
+    })
     .filter((m) => {
       if (!courseCode) return true;
 
-      return (
-        m.teamId.classId &&
-        m.teamId.classId.course_code === courseCode.toUpperCase()
-      );
+      const match =
+        m.classId && m.classId.course_code === courseCode.toUpperCase();
+
+      return match;
     })
     .map((m) => ({
-      teamId: m.teamId._id,
-      courseworkId: m.teamId.courseworkId?._id || null,
-      classId: m.teamId.classId?._id || null,
+      teamId: m._id,
+      courseworkId: m.courseworkId?._id || null,
+      classId: m.classId?._id || null,
 
-      courseCode: m.teamId.classId?.course_code || null,
-      classCode: m.teamId.classId?.class_code || null,
-      classColor: m.teamId.classId?.class_color || "#FFFFFF",
+      courseCode: m.classId?.course_code || null,
+      classCode: m.classId?.class_code || null,
+      classColor: m.classId?.class_color || "#FFFFFF",
 
-      teamName: m.teamId.name,
-      courseworkName: m.teamId.courseworkId?.name || null,
+      teamName: m.name,
+      courseworkName: m.courseworkId?.name || null,
     }));
 
   return result;
@@ -902,10 +1016,153 @@ const respondToTeamInvitation = async ({ invitationId, studentId, action }) => {
   return { success: true, status: "REJECTED" };
 };
 
+const kickStudentFromTeam = async ({ teamId, studentId, instructorId }) => {
+  //Check team exists
+  const team = await Team.findById(teamId);
+  if (!team) {
+    const err = new Error("Team not found.");
+    err.statusCode = 404;
+    throw err;
+  }
+
+  //Check instructor is assigned to this team
+  if (!team.instructorId || team.instructorId.toString() !== instructorId) {
+    const err = new Error("You are not assigned as instructor for this team.");
+    err.statusCode = 403;
+    throw err;
+  }
+
+  //Get coursework
+  const coursework = await Coursework.findById(team.courseworkId);
+  if (!coursework) {
+    const err = new Error("Coursework not found.");
+    err.statusCode = 404;
+    throw err;
+  }
+
+  //Check deadline (must be > 5 days)
+  const deadline = new Date(coursework.deadline);
+  const now = new Date();
+
+  const diffTime = deadline - now;
+  const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+  if (daysRemaining <= 5) {
+    const err = new Error(
+      "Cannot remove student when 5 days or less remain before deadline.",
+    );
+    err.statusCode = 400;
+    throw err;
+  }
+
+  //Check student is in team
+  const member = await TeamMember.findOne({
+    teamId,
+    studentId: studentId,
+  });
+
+  if (!member) {
+    const err = new Error("Student is not in this team.");
+    err.statusCode = 404;
+    throw err;
+  }
+
+  // Check if the student being kicked is the leader
+  const isLeader = member.role === "LEADER";
+
+  if (isLeader) {
+    // Find other members in the team BEFORE removing the leader
+    const otherMembers = await TeamMember.find({
+      teamId,
+      studentId: { $ne: studentId }, // Exclude the student being kicked
+    });
+
+    if (otherMembers.length > 0) {
+      // Randomly select a new leader
+      const randomIndex = Math.floor(Math.random() * otherMembers.length);
+      const newLeader = otherMembers[randomIndex];
+
+      // Update the new leader's role
+      await TeamMember.findByIdAndUpdate(
+        newLeader._id,
+        { $set: { role: "LEADER" } },
+        { new: true },
+      );
+
+      // Get new leader info for notification
+      const newLeaderUser = await User.findById(newLeader.studentId).select(
+        "first_name last_name email",
+      );
+
+      // Get class info
+      const classObj = await Class.findById(team.classId);
+
+      // Get instructor info for notification
+      const instructor = await User.findById(instructorId).select(
+        "first_name last_name email",
+      );
+
+      // Notify the new leader
+      await notificationService.createNotification({
+        userId: newLeader.studentId,
+        type: "TEAM_LEADER_ASSIGNED",
+        message: `You have been assigned as the new leader of team "${team.name}" for the coursework "${coursework.name}".
+
+The previous team leader has been removed by the instructor.
+
+Instructor: ${instructor.first_name} ${instructor.last_name}
+Email: ${instructor.email}
+
+Please coordinate with your team members to ensure smooth progress.`,
+        referenceId: team._id,
+        courseCode: classObj?.course_code,
+        classColor: classObj?.class_color,
+      });
+    } else {
+      // No other members -> delete the team
+      await Team.findByIdAndDelete(teamId);
+    }
+  }
+
+  // Remove student from team
+  await TeamMember.deleteOne({
+    teamId,
+    studentId: studentId,
+  });
+
+  // Get class info (for notification)
+  const classObj = await Class.findById(team.classId);
+
+  // Get instructor info
+  const instructor = await User.findById(instructorId).select(
+    "first_name last_name email",
+  );
+
+  const instructorName = `${instructor.first_name} ${instructor.last_name}`;
+
+  // Send notification to kicked student
+  await notificationService.createNotification({
+    userId: studentId,
+    type: "TEAM_MEMBER_REMOVED",
+    message: `You have been removed from the team "${team.name}" for the coursework "${coursework.name}".
+
+Instructor: ${instructorName}
+Email: ${instructor.email}
+
+If you believe this action was made in error, please contact your instructor.`,
+    referenceId: team._id,
+    courseCode: classObj?.course_code,
+    classColor: classObj?.class_color,
+  });
+
+  return true;
+};
+
 module.exports = {
   createTeam,
   lockTeam,
   getCourseworkTeams,
+  assignInstructorToTeam,
   getTeamDetails,
   getStudentTeams,
   getInstructorTeams,
@@ -913,4 +1170,5 @@ module.exports = {
   respondToJoinRequest,
   sendTeamInvitation,
   respondToTeamInvitation,
+  kickStudentFromTeam,
 };

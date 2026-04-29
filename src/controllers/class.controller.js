@@ -223,6 +223,26 @@ const getClassMembers = async (req, res) => {
   }
 };
 
+// GET /api/classes/:classId/instructors
+const getClassInstructors = async (req, res) => {
+  try {
+    const { classId } = req.params;
+    const userId = req.user.id;
+
+    const instructors = await classService.getClassInstructors(classId, userId);
+
+    res.status(200).json({
+      success: true,
+      data: instructors,
+    });
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
+
 // GET /api/classes/:classId/posts
 const getClassPosts = async (req, res) => {
   try {
@@ -303,13 +323,12 @@ const leaveClass = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: "You have successfully left the class."
+      message: "You have successfully left the class.",
     });
-
   } catch (err) {
     res.status(400).json({
       success: false,
-      message: err.message
+      message: err.message,
     });
   }
 };
@@ -317,7 +336,6 @@ const leaveClass = async (req, res) => {
 // DELETE /api/classes/:classId/members/:studentId
 const removeStudent = async (req, res) => {
   try {
-
     const { classId, studentId } = req.params;
     const requesterId = req.user.id;
 
@@ -325,16 +343,13 @@ const removeStudent = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: "Student removed from class successfully."
+      message: "Student removed from class successfully.",
     });
-
   } catch (err) {
-
     res.status(400).json({
       success: false,
-      message: err.message
+      message: err.message,
     });
-
   }
 };
 
@@ -349,8 +364,9 @@ module.exports = {
   joinClassByCode,
   respondToInvitation,
   getClassMembers,
+  getClassInstructors,
   getClassPosts,
   assignInstructorAsAdmin,
   leaveClass,
-  removeStudent
+  removeStudent,
 };

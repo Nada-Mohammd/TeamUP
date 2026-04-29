@@ -1,17 +1,17 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 const { Schema, model } = mongoose;
 
 const courseworkSchema = new Schema(
   {
     name: {
       type: String,
-      required: [true, 'Coursework name is required.'],
+      required: [true, "Coursework name is required."],
       trim: true,
     },
     notes: {
       type: String,
       trim: true,
-      maxlength: [200, 'Notes cannot exceed 200 characters.'],
+      maxlength: [200, "Notes cannot exceed 200 characters."],
     },
     description: {
       type: String,
@@ -19,22 +19,22 @@ const courseworkSchema = new Schema(
     },
     grade: {
       type: Number,
-      min: [0, 'Grade cannot be negative.'],
-      max: [100, 'Grade cannot exceed 100.'],
+      min: [0, "Grade cannot be negative."],
+      max: [100, "Grade cannot exceed 100."],
     },
     team_size_min: {
       type: Number,
-      min: [1, 'Minimum team size must be at least 1.'],
+      min: [1, "Minimum team size must be at least 1."],
     },
     team_size_max: {
       type: Number,
-      min: [1, 'Maximum team size must be at least 1.'],
+      min: [1, "Maximum team size must be at least 1."],
     },
 
     // Dates
     deadline: {
       type: Date,
-      required: [true, 'Deadline is required.'],
+      required: [true, "Deadline is required."],
     },
     discussion_date: {
       type: Date,
@@ -49,12 +49,12 @@ const courseworkSchema = new Schema(
         criterion: {
           type: String,
           trim: true,
-          maxlength: [100, 'Criterion name too long.'],
+          maxlength: [100, "Criterion name too long."],
         },
         points: {
           type: Number,
-          min: [0, 'Points cannot be negative.'],
-          max: [100, 'Points cannot exceed 100.'],
+          min: [0, "Points cannot be negative."],
+          max: [100, "Points cannot exceed 100."],
         },
       },
     ],
@@ -62,13 +62,13 @@ const courseworkSchema = new Schema(
     // Relationships
     classId: {
       type: Schema.Types.ObjectId,
-      ref: 'Class',
-      required: [true, 'Class ID is required.'],
+      ref: "Class",
+      required: [true, "Class ID is required."],
     },
     authorId: {
       type: Schema.Types.ObjectId,
-      ref: 'User',
-      required: [true, 'Author ID is required.'],
+      ref: "User",
+      required: [true, "Author ID is required."],
     },
 
     // Files uploaded with this coursework
@@ -82,11 +82,11 @@ const courseworkSchema = new Schema(
           type: String,
           required: true,
         },
-        download_url: {  
-      type: String,
-    },
+        download_url: {
+          type: String,
+        },
         file_size: {
-          type: Number, 
+          type: Number,
         },
         uploaded_at: {
           type: Date,
@@ -94,10 +94,35 @@ const courseworkSchema = new Schema(
         },
         uploaded_by: {
           type: Schema.Types.ObjectId,
-          ref: 'User',
+          ref: "User",
         },
       },
     ],
+    ai_required_skills: {
+      type: [String],
+      default: [],
+    },
+
+    ai_preferred_skills: {
+      type: [String],
+      default: [],
+    },
+
+    ai_recommended_roles: {
+      type: [String],
+      default: [],
+    },
+
+    ai_difficulty: {
+      type: String,
+      enum: ["easy", "medium", "hard", "unknown"],
+      default: "unknown",
+    },
+
+    ai_analysis_done: {
+      type: Boolean,
+      default: false,
+    },
     isDeleted: {
       type: Boolean,
       default: false,
@@ -105,13 +130,15 @@ const courseworkSchema = new Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
-courseworkSchema.pre('save', function (next) {
+courseworkSchema.pre("save", function (next) {
   if (this.team_size_min != null && this.team_size_max != null) {
     if (this.team_size_min > this.team_size_max) {
-      return next(new Error('Minimum team size cannot be greater than maximum.'));
+      return next(
+        new Error("Minimum team size cannot be greater than maximum."),
+      );
     }
   }
   next();
@@ -121,5 +148,7 @@ courseworkSchema.index({ classId: 1, isDeleted: 1 });
 courseworkSchema.index({ deadline: 1 });
 courseworkSchema.index({ authorId: 1 });
 
-const Coursework = model('Coursework', courseworkSchema);
+const Coursework =
+  mongoose.models.Coursework || model("Coursework", courseworkSchema);
+
 module.exports = Coursework;
