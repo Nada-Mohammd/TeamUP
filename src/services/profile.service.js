@@ -2,6 +2,7 @@
 const StudentProfile = require("../models/StudentProfile");
 const User = require("../models/User");
 const { editProfileSchema } = require("../utils/Schemas/profile.schema");
+const { deleteFromCloudinary } = require("../middlewares/upload");
 
 // get a student's profile by their user ID
 const getProfileByUserId = async (userId) => {
@@ -76,14 +77,14 @@ async function editProfile(userId, body, files) {
 
   // --- CV ---
   if (cvFile) {
+    await deleteFromCloudinary(profile.cv?.storagePath, "raw");
     update.cv = {
       filename: cvFile.originalname,
       storagePath: cvFile.path,
       uploadedAt: new Date(),
     };
-  } else if (
-    body.cv_cleared === "true"
-  ) {
+  } else if (body.cv_cleared === "true") {
+    await deleteFromCloudinary(profile.cv?.storagePath, "raw");
     update.cv = { filename: null, storagePath: null, uploadedAt: null };
   }
 
