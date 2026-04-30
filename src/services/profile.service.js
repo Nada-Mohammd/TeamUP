@@ -13,7 +13,6 @@ const getProfileByUserId = async (userId) => {
     throw { status: 404, message: "Profile not found." };
   }
 
-  console.log(profile.skills);
   return profile;
 };
 
@@ -132,7 +131,6 @@ async function editProfile(userId, body, files) {
       : Promise.resolve(),
   ]);
 
-  console.log(updated.skills);
   return updated;
 }
 
