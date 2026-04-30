@@ -15,5 +15,4 @@ router.get("/:userId", authenticate, authorizeProfileAccess, getProfile);
 // PATCH /api/profile/:userId/edit
 router.patch("/:userId/edit", authenticate, authorizeProfileAccess, uploadProfileFiles, editProfile);
 
-router.patch("/:userId/skills", updateProfileSkills);
 module.exports = router;

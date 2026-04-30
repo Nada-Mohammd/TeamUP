@@ -3,7 +3,7 @@ const StudentProfile = require("../models/StudentProfile");
 const User = require("../models/User");
 const { editProfileSchema } = require("../utils/Schemas/profile.schema");
 const { deleteFromCloudinary } = require("../middlewares/upload");
-const { normalizeSkillsWithAI } = require("./skillNormalization.service");
+const { normalizeSkills } = require("../services/matching.service");
 
 // get a student's profile by their user ID
 const getProfileByUserId = async (userId) => {
@@ -13,32 +13,9 @@ const getProfileByUserId = async (userId) => {
     throw { status: 404, message: "Profile not found." };
   }
 
+  console.log(profile.skills);
   return profile;
 };
-
-async function updateProfileSkills(userId, skills) {
-  if (!Array.isArray(skills)) {
-    const error = new Error("skills must be an array");
-    error.status = 400;
-    throw error;
-  }
-
-  const normalizedSkills = await normalizeSkillsWithAI(skills);
-
-  const profile = await StudentProfile.findOneAndUpdate(
-    { user_id: userId },
-    { skills: normalizedSkills },
-    { new: true, runValidators: true },
-  );
-
-  if (!profile) {
-    const error = new Error("Profile not found");
-    error.status = 404;
-    throw error;
-  }
-
-  return profile;
-}
 
 // edit a student's profile
 async function editProfile(userId, body, files) {
@@ -68,7 +45,14 @@ async function editProfile(userId, body, files) {
   const update = { ...result.data };
 
   if (update.skills) {
-    update.skills = [...new Set(update.skills.map((s) => s.trim()))];
+    update.skills = [
+      ...new Set(
+        update.skills.map((s) => {
+          const lowered = s.toLowerCase().trim();
+          return lowered !== s ? normalizeSkills([s])[0] : s;
+        }),
+      ),
+    ];
   }
 
   if (!("links" in update)) {
@@ -148,7 +132,8 @@ async function editProfile(userId, body, files) {
       : Promise.resolve(),
   ]);
 
+  console.log(updated.skills);
   return updated;
 }
 
-module.exports = { getProfileByUserId, editProfile, updateProfileSkills };
+module.exports = { getProfileByUserId, editProfile };
