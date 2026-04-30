@@ -30,8 +30,9 @@ const profileStorage = new CloudinaryStorage({
       return {
         folder: "profile_pictures",
         resource_type: "image",
-        public_id: `profile_pictures/profile_${userId}`,
+        public_id: `profile_${userId}`,
         overwrite: true,
+        invalidate: true,
         access_mode: "public",
       };
     }
@@ -41,7 +42,7 @@ const profileStorage = new CloudinaryStorage({
       return {
         folder: "cvs",
         resource_type: "raw",
-        public_id: `cvs/cv_${userId}.${ext}`,
+        public_id: `cv_${userId}.${ext}`,
         overwrite: true,
         access_mode: "public",
       };
@@ -95,11 +96,6 @@ async function deleteFromCloudinary(storagePath, resourceType = "image") {
       publicId = publicId.replace(/\.[^.]+$/, "");
     }
 
-    console.log("Deleting from Cloudinary:", {
-      publicId,
-      resourceType,
-      storagePath,
-    });
     await cloudinary.uploader.destroy(publicId, {
       resource_type: resourceType,
     });

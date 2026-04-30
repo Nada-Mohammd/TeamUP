@@ -93,19 +93,12 @@ async function editProfile(userId, body, files) {
   }
 
   if (profilePic) {
-    tasks.push(
-      deleteFromCloudinary(profile.profile_picture?.storagePath, "image").then(
-        () => {
-          update.profile_picture = {
-            filename: profilePic.originalname,
-            storagePath: profilePic.path,
-            uploadedAt: new Date(),
-          };
-        },
-      ),
-    );
+    update.profile_picture = {
+      filename: profilePic.originalname,
+      storagePath: profilePic.path,
+      uploadedAt: new Date(),
+    };
   }
-
   await Promise.all(tasks);
 
   if (Object.keys(update).length === 0) return profile;
