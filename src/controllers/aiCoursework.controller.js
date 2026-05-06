@@ -2,13 +2,9 @@ const mongoose = require("mongoose");
 const Coursework = require("../models/Coursework");
 const StudentProfile = require("../models/StudentProfile");
 const TeamMember = require("../models/TeamMembers");
-const {
-  normalizeSkillsWithAI,
-} = require("../services/skillNormalization.service");
+const { normalizeSkillsWithAI } = require("../services/skillNormalization.service");
 const { extractTextFromFile } = require("../services/fileText.service");
-const {
-  extractSkillsFromText,
-} = require("../services/aiSkillExtraction.service");
+const { extractSkillsFromText } = require("../services/aiSkillExtraction.service");
 const {
   getMissingSkills,
   calculateCandidateScore,
@@ -17,6 +13,7 @@ const {
 const Team = require("../models/Team");
 const ClassProfile = require("../models/ClassProfile");
 
+//extractCourseworkSkills 
 async function extractCourseworkSkills(req, res) {
   try {
     const { courseworkId } = req.params;
@@ -30,9 +27,7 @@ async function extractCourseworkSkills(req, res) {
     const coursework = await Coursework.findById(courseworkId);
 
     if (!coursework) {
-      return res.status(404).json({
-        message: "Coursework not found.",
-      });
+      return res.status(404).json({ message: "Coursework not found." });
     }
 
     const text = await extractTextFromFile(req.file);
@@ -44,19 +39,14 @@ async function extractCourseworkSkills(req, res) {
     }
 
     const aiResult = await extractSkillsFromText(text);
-    const normalizedRequiredSkills = await normalizeSkillsWithAI(
-      aiResult.required_skills || [],
-    );
+    const normalizedRequiredSkills = await normalizeSkillsWithAI(aiResult.required_skills || []);
+    const normalizedPreferredSkills = await normalizeSkillsWithAI(aiResult.preferred_skills || []);
 
-    const normalizedPreferredSkills = await normalizeSkillsWithAI(
-      aiResult.preferred_skills || [],
-    );
-
-    coursework.ai_required_skills = normalizedRequiredSkills;
-    coursework.ai_preferred_skills = normalizedPreferredSkills;
+    coursework.ai_required_skills   = normalizedRequiredSkills;
+    coursework.ai_preferred_skills  = normalizedPreferredSkills;
     coursework.ai_recommended_roles = aiResult.recommended_roles || [];
-    coursework.ai_difficulty = aiResult.difficulty || "unknown";
-    coursework.ai_analysis_done = true;
+    coursework.ai_difficulty        = aiResult.difficulty || "unknown";
+    coursework.ai_analysis_done     = true;
 
     await coursework.save();
 
@@ -64,31 +54,34 @@ async function extractCourseworkSkills(req, res) {
       message: "Coursework skills extracted successfully.",
       courseworkId: coursework._id,
       result: {
-        required_skills: coursework.ai_required_skills,
-        preferred_skills: coursework.ai_preferred_skills,
+        required_skills:   coursework.ai_required_skills,
+        preferred_skills:  coursework.ai_preferred_skills,
         recommended_roles: coursework.ai_recommended_roles,
-        difficulty: coursework.ai_difficulty,
+        difficulty:        coursework.ai_difficulty,
       },
     });
   } catch (error) {
     console.error("extractCourseworkSkills error:", error);
-
     return res.status(500).json({
       message: "Failed to extract coursework skills.",
       error: error.message,
     });
   }
 }
+
+//suggestTeamMembersForNewTeam 
 async function suggestTeamMembersForNewTeam(req, res) {
   try {
     const { studentId, courseworkId } = req.query;
 
+    //1. Presence check 
     if (!studentId || !courseworkId) {
       return res.status(400).json({
         message: "studentId and courseworkId are required.",
       });
     }
 
+    //2. ObjectId validity 
     if (
       !mongoose.Types.ObjectId.isValid(studentId) ||
       !mongoose.Types.ObjectId.isValid(courseworkId)
@@ -98,12 +91,11 @@ async function suggestTeamMembersForNewTeam(req, res) {
       });
     }
 
+    //3. Fetch coursework
     const coursework = await Coursework.findById(courseworkId).lean();
 
     if (!coursework) {
-      return res.status(404).json({
-        message: "Coursework not found.",
-      });
+      return res.status(404).json({ message: "Coursework not found." });
     }
 
     if (
@@ -116,21 +108,19 @@ async function suggestTeamMembersForNewTeam(req, res) {
       });
     }
 
+    //4. Fetch creator profile 
     const creatorProfile = await StudentProfile.findOne({
       user_id: studentId,
     }).lean();
 
     if (!creatorProfile) {
-      return res.status(404).json({
-        message: "Student profile not found.",
-      });
+      return res.status(404).json({ message: "Student profile not found." });
     }
 
+    //5. Make sure creator does not already have a team for this coursework 
     const existingMembership = await TeamMember.aggregate([
       {
-        $match: {
-          studentId: new mongoose.Types.ObjectId(studentId),
-        },
+        $match: { studentId: new mongoose.Types.ObjectId(studentId) },
       },
       {
         $lookup: {
@@ -154,13 +144,14 @@ async function suggestTeamMembersForNewTeam(req, res) {
       });
     }
 
-    const requiredSkills = coursework.ai_required_skills;
-
+    //6. Compute missing skills 
+    const requiredSkills    = coursework.ai_required_skills;
     const skillsStillNeeded = getMissingSkills(
       requiredSkills,
       creatorProfile.skills || [],
     );
 
+    //7. Build exclusion list
     const studentsAlreadyInCourseworkTeams = await TeamMember.aggregate([
       {
         $lookup: {
@@ -176,72 +167,130 @@ async function suggestTeamMembersForNewTeam(req, res) {
           "team.courseworkId": new mongoose.Types.ObjectId(courseworkId),
         },
       },
-      {
-        $project: {
-          studentId: 1,
-        },
-      },
+      { $project: { studentId: 1 } },
     ]);
 
-    const excludedUserIds = studentsAlreadyInCourseworkTeams.map((member) =>
-      member.studentId.toString(),
+    const excludedUserIds = new Set(
+      studentsAlreadyInCourseworkTeams.map((m) => m.studentId.toString()),
     );
+    excludedUserIds.add(studentId.toString());
 
-    excludedUserIds.push(studentId.toString());
+    //8. Scope candidates to same class only 
+    const classEnrollments = await ClassProfile.find({
+      classId:   coursework.classId,
+      classRole: "member",
+    }).lean();
+
+    const enrolledUserIds = classEnrollments.map((e) => e.userId.toString());
+
+    const eligibleUserIds = enrolledUserIds.filter(
+      (id) => !excludedUserIds.has(id),
+    );
 
     const candidateProfiles = await StudentProfile.find({
       user_id: {
-        $nin: excludedUserIds.map((id) => new mongoose.Types.ObjectId(id)),
+        $in: eligibleUserIds.map((id) => new mongoose.Types.ObjectId(id)),
       },
     }).lean();
 
-    const suggestedStudents = candidateProfiles
-      .map((profile) => {
-        const result = calculateCandidateScore(
-          profile,
-          skillsStillNeeded,
-          creatorProfile,
-        );
+    // 9. Score every eligible candidate 
+    const scoredCandidates = candidateProfiles.map((profile) => {
+      const result = calculateCandidateScore(
+        profile,
+        skillsStillNeeded,
+        creatorProfile,
+        requiredSkills,             //coursework skill weight
+      );
 
-        return {
-          studentId: profile.user_id,
-          profileId: profile._id,
-          name: `${profile.first_name} ${profile.last_name}`,
-          username: profile.username,
-          email: profile.email,
-          skills: profile.skills,
-          availability: profile.availability,
-          gpa: profile.gpa,
-          score: result.score,
-          matchedSkills: result.matchedSkills,
-          breakdown: result.breakdown,
-          reason: buildCandidateReason(profile, result.matchedSkills),
-        };
-      })
-      .filter((student) => student.matchedSkills.length > 0)
+      return {
+        studentId:               profile.user_id,
+        profileId:               profile._id,
+        name:                    `${profile.first_name} ${profile.last_name}`,
+        username:                profile.username,
+        email:                   profile.email,
+        skills:                  profile.skills,
+        availability:            profile.availability,
+        gpa:                     profile.gpa,
+        score:                   result.score,
+        matchedSkills:           result.matchedSkills,
+        courseworkMatchedSkills: result.courseworkMatchedSkills,
+        breakdown:               result.breakdown,
+      };
+    });
+
+    // ── 10. Split into exact matches vs fallback ──────────────────────────────
+    const exactMatches = scoredCandidates
+      .filter((s) => s.matchedSkills.length > 0)
       .sort((a, b) => b.score - a.score);
 
+    const fallbackMatches = scoredCandidates
+      .filter((s) => s.matchedSkills.length === 0)
+      .sort((a, b) => b.score - a.score);
+
+    const hasExactMatch = exactMatches.length > 0;
+    const pool = hasExactMatch ? exactMatches : fallbackMatches;
+
+    // ── 11. Attach reason ─────────────────────────────────────────────────────
+    const suggestedStudents = pool.map((s) => ({
+      ...s,
+      reason: buildCandidateReason(
+        { availability: s.availability },
+        s.matchedSkills,
+        s.courseworkMatchedSkills,
+        hasExactMatch,
+      ),
+    }));
+
+    // ── 12. Build suggestion status ───────────────────────────────────────────
+    let suggestionStatus;
+
+    if (eligibleUserIds.length === 0) {
+      suggestionStatus = {
+        type:    "no_candidates",
+        message: "All students in this class are already assigned to a team for this coursework.",
+      };
+    } else if (suggestedStudents.length === 0) {
+      suggestionStatus = {
+        type:    "no_candidates",
+        message: "No available students in your class at this time.",
+      };
+    } else if (!hasExactMatch) {
+      suggestionStatus = {
+        type:    "fallback",
+        message:
+          skillsStillNeeded.length > 0
+            ? `No classmates match your missing skills (${skillsStillNeeded.join(", ")}). Showing ${suggestedStudents.length} available classmate(s) who may still complement your team.`
+            : `You already cover all required skills. Showing ${suggestedStudents.length} available classmate(s) ranked by availability and GPA.`,
+      };
+    } else {
+      suggestionStatus = {
+        type:    "match",
+        message: `Found ${suggestedStudents.length} classmate(s) who cover one or more of your missing skills.`,
+      };
+    }
+
+    // ── 13. Response ──────────────────────────────────────────────────────────
     return res.status(200).json({
       coursework: {
-        id: coursework._id,
-        name: coursework.name,
+        id:          coursework._id,
+        name:        coursework.name,
         requiredSkills,
         minTeamSize: coursework.team_size_min,
         maxTeamSize: coursework.team_size_max,
       },
       creator: {
-        studentId: creatorProfile.user_id,
-        name: `${creatorProfile.first_name} ${creatorProfile.last_name}`,
-        skills: creatorProfile.skills,
+        studentId:    creatorProfile.user_id,
+        name:         `${creatorProfile.first_name} ${creatorProfile.last_name}`,
+        skills:       creatorProfile.skills,
         availability: creatorProfile.availability,
-        gpa: creatorProfile.gpa,
+        gpa:          creatorProfile.gpa,
       },
       skillsStillNeeded,
+      suggestionStatus,
       suggestedStudents,
     });
   } catch (error) {
     console.error("suggestTeamMembersForNewTeam error:", error);
-
     return res.status(500).json({
       message: "Failed to suggest team members.",
       error: error.message,

@@ -78,54 +78,94 @@ function getGpaScore(gpa) {
   return Math.min(Math.max(Number(gpa) / 4, 0), 1);
 }
 
+// 4th param defaults to [] → existing 3-arg calls are 100% unaffected
 function calculateCandidateScore(
   candidateProfile,
   skillsNeeded = [],
   creatorProfile,
+  courseworkRequiredSkills = [],  // ← optional, defaults to [] for old calls
 ) {
   const matchedSkills = getMatchedSkills(
     candidateProfile?.skills || [],
-    skillsNeeded || []
+    skillsNeeded || [],
   );
 
   const skillScore =
-    skillsNeeded.length === 0 ? 1 : matchedSkills.length / skillsNeeded.length;
+    skillsNeeded.length === 0
+      ? 1
+      : matchedSkills.length / skillsNeeded.length;
+
+  // Only runs meaningfully when 4th arg is passed, otherwise 0/0 → score = 1 (neutral)
+  const courseworkMatchedSkills = getMatchedSkills(
+    candidateProfile?.skills || [],
+    courseworkRequiredSkills || [],
+  );
+
+  const courseworkSkillScore =
+    courseworkRequiredSkills.length === 0
+      ? 1
+      : courseworkMatchedSkills.length / courseworkRequiredSkills.length;
 
   const availabilityScore = getAvailabilityCompatibility(
     creatorProfile?.availability || [],
-    candidateProfile?.availability || []
+    candidateProfile?.availability || [],
   );
 
   const ratingScore = getRatingScore(candidateProfile?.ratings || []);
   const gpaScore = getGpaScore(candidateProfile?.gpa);
 
+  // When courseworkRequiredSkills=[] (old calls): courseworkSkillScore=1,
+  // so the 0.15 weight just adds a flat bonus — scores stay comparable.
+  // Weights: missing-skill 45% | coursework coverage 15% | availability 20% | rating 10% | gpa 10%
   const finalScore =
-    skillScore * 0.6 +
-    availabilityScore * 0.2 +
-    ratingScore * 0.1 +
-    gpaScore * 0.1;
+    skillScore           * 0.45 +
+    courseworkSkillScore * 0.15 +
+    availabilityScore    * 0.20 +
+    ratingScore          * 0.10 +
+    gpaScore             * 0.10;
 
   return {
     score: Number((finalScore * 100).toFixed(2)),
     matchedSkills,
+    courseworkMatchedSkills,  // [] when called with 3 args — safe to spread/ignore
     breakdown: {
-      skillScore: Number((skillScore * 100).toFixed(2)),
-      availabilityScore: Number((availabilityScore * 100).toFixed(2)),
-      ratingScore: Number((ratingScore * 100).toFixed(2)),
-      gpaScore: Number((gpaScore * 100).toFixed(2)),
+      skillScore:           Number((skillScore * 100).toFixed(2)),
+      courseworkSkillScore: Number((courseworkSkillScore * 100).toFixed(2)),
+      availabilityScore:    Number((availabilityScore * 100).toFixed(2)),
+      ratingScore:          Number((ratingScore * 100).toFixed(2)),
+      gpaScore:             Number((gpaScore * 100).toFixed(2)),
     },
   };
 }
 
-function buildCandidateReason(candidateProfile, matchedSkills = []) {
+// Extra params default to [] / true → existing 2-arg calls are 100% unaffected
+function buildCandidateReason(
+  candidateProfile,
+  matchedSkills = [],
+  courseworkMatchedSkills = [],  // ← ignored by old calls
+  hasExactMatch = true,          // ← ignored by old calls
+) {
   const availabilityArr = normalizeAvailability(candidateProfile?.availability);
-
   const availability = availabilityArr.length
     ? availabilityArr.join(", ")
     : "not specified";
 
+  if (!hasExactMatch) {
+    if (courseworkMatchedSkills.length > 0) {
+      return (
+        `No students fully match your missing skills, but this student covers ` +
+        `${courseworkMatchedSkills.join(", ")} from the coursework requirements ` +
+        `and is available during: ${availability}.`
+      );
+    }
+    return (
+      `No strong skill match found. This student is available during: ${availability} ` +
+      `and may still be a good collaborator.`
+    );
+  }
+
   if (matchedSkills.length > 0) {
-    return `Covers ${matchedSkills.join(", ")} and is available during: ${availability}.`;
+    return `Covers ${matchedSkills.join(", ")} from your missing skills and is available during: ${availability}.`;
   }
 
   return `Weak skill match, but is available during: ${availability}.`;
