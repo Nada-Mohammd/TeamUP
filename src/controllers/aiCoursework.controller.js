@@ -14,6 +14,8 @@ const {
   calculateCandidateScore,
   buildCandidateReason,
 } = require("../services/matching.service");
+const Team = require("../models/Team");
+const ClassProfile = require("../models/ClassProfile");
 
 async function extractCourseworkSkills(req, res) {
   try {
@@ -246,7 +248,217 @@ async function suggestTeamMembersForNewTeam(req, res) {
     });
   }
 }
+
+// ─── Action 2 ────────────────────────────────────────────────────────────────
+async function suggestTeamMembersForExistingTeam(req, res) {
+  try {
+    const { studentId, teamId, courseworkId } = req.query;
+
+    // ── 1. Presence check ────────────────────────────────────────────────────
+    if (!studentId || !teamId || !courseworkId) {
+      return res.status(400).json({
+        message: "studentId, teamId and courseworkId are required.",
+      });
+    }
+
+    // ── 2. ObjectId validity ─────────────────────────────────────────────────
+    if (
+      !mongoose.Types.ObjectId.isValid(studentId) ||
+      !mongoose.Types.ObjectId.isValid(teamId) ||
+      !mongoose.Types.ObjectId.isValid(courseworkId)
+    ) {
+      return res.status(400).json({ message: "Invalid studentId, teamId or courseworkId." });
+    }
+
+    // ── 3. Fetch coursework ───────────────────────────────────────────────────
+    const coursework = await Coursework.findById(courseworkId).lean();
+    if (!coursework) {
+      return res.status(404).json({ message: "Coursework not found." });
+    }
+
+    if (
+      !coursework.ai_analysis_done ||
+      !coursework.ai_required_skills ||
+      coursework.ai_required_skills.length === 0
+    ) {
+      return res.status(400).json({ message: "Coursework skills are not extracted yet." });
+    }
+
+    // ── 4. Verify team belongs to this coursework ────────────────────────────
+    const team = await Team.findOne({
+      _id: teamId,
+      courseworkId,
+    }).lean();
+
+    if (!team) {
+      return res.status(404).json({
+        message: "Team not found or does not belong to this coursework.",
+      });
+    }
+
+    // ── 5. Verify requesting student is actually a member of the team ─────────
+    const requestingMembership = await TeamMember.findOne({
+      teamId,
+      studentId,
+    }).lean();
+
+    if (!requestingMembership) {
+      return res.status(403).json({
+        message: "You are not a member of this team.",
+      });
+    }
+
+    // ── 6. Fetch all team members' profiles ──────────────────────────────────
+    const teamMemberDocs = await TeamMember.find({ teamId }).lean();
+    const teamMemberUserIds = teamMemberDocs.map((m) => m.studentId);
+
+    const teamMemberProfiles = await StudentProfile.find({
+      user_id: { $in: teamMemberUserIds },
+    }).lean();
+
+    if (teamMemberProfiles.length === 0) {
+      return res.status(404).json({ message: "No team member profiles found." });
+    }
+
+    // ── 7. Build aggregate team profile ──────────────────────────────────────
+    //   Skills  → union (normalised lowercase for deduplication, keep originals)
+    const teamSkillsSet = new Set();
+    const teamSkillsDisplay = [];
+    for (const profile of teamMemberProfiles) {
+      for (const skill of profile.skills || []) {
+        const normalised = skill.trim().toLowerCase();
+        if (!teamSkillsSet.has(normalised)) {
+          teamSkillsSet.add(normalised);
+          teamSkillsDisplay.push(skill); // keep original casing for display
+        }
+      }
+    }
+
+    //   Availability → union of all unique slots
+    //   getAvailabilityCompatibility already handles arrays, so pass the union
+    //   directly as the "team availability" for scoring.
+    const teamAvailabilitySet = new Set();
+    for (const profile of teamMemberProfiles) {
+      const slots = Array.isArray(profile.availability)
+        ? profile.availability
+        : profile.availability
+        ? [profile.availability]
+        : [];
+      for (const slot of slots) {
+        if (slot) teamAvailabilitySet.add(slot.trim().toLowerCase());
+      }
+    }
+    const teamAvailability = [...teamAvailabilitySet];
+
+    // Synthetic "creator" object that the shared scoring helper understands
+    const teamAggregateProfile = {
+      skills: teamSkillsDisplay,
+      availability: teamAvailability,
+    };
+
+    // ── 8. Compute missing skills ─────────────────────────────────────────────
+    const requiredSkills = coursework.ai_required_skills;
+    const skillsStillNeeded = getMissingSkills(requiredSkills, teamSkillsDisplay);
+
+    // ── 9. Build exclusion list ───────────────────────────────────────────────
+    //   Exclude every student already in ANY team for this coursework
+    //   (same logic as Action 1, team members are already in teams so they
+    //   are naturally included in this query result too)
+    const studentsAlreadyInCourseworkTeams = await TeamMember.aggregate([
+      {
+        $lookup: {
+          from: "teams",
+          localField: "teamId",
+          foreignField: "_id",
+          as: "team",
+        },
+      },
+      { $unwind: "$team" },
+      {
+        $match: {
+          "team.courseworkId": new mongoose.Types.ObjectId(courseworkId),
+        },
+      },
+      { $project: { studentId: 1 } },
+    ]);
+
+    const excludedUserIds = new Set(
+      studentsAlreadyInCourseworkTeams.map((m) => m.studentId.toString())
+    );
+
+    // ── 10. Fetch & score candidates ─────────────────────────────────────────
+    const classEnrollments = await ClassProfile.find({
+      classId: coursework.classId,
+      classRole: "member",
+    }).lean();
+    
+    const enrolledUserIds = classEnrollments.map((e) => e.userId.toString());
+    
+    const eligibleUserIds = enrolledUserIds.filter(
+      (id) => !excludedUserIds.has(id)
+    );
+    
+    const candidateProfiles = await StudentProfile.find({
+      user_id: {
+        $in: eligibleUserIds.map((id) => new mongoose.Types.ObjectId(id)),
+      },
+    }).lean();
+
+    const suggestedStudents = candidateProfiles
+    .map((profile) => {
+      const result = calculateCandidateScore(
+        profile,
+        skillsStillNeeded,
+        teamAggregateProfile,
+      );
+  
+      return {
+        studentId: profile.user_id,
+        profileId: profile._id,
+        name: `${profile.first_name} ${profile.last_name}`,
+        username: profile.username,
+        email: profile.email,
+        skills: profile.skills,
+        availability: profile.availability,
+        gpa: profile.gpa,
+        score: result.score,
+        matchedSkills: result.matchedSkills,
+        breakdown: result.breakdown,
+        reason: buildCandidateReason(profile, result.matchedSkills),
+      };
+    })
+    .sort((a, b) => b.score - a.score);
+
+    // ── 11. Response ──────────────────────────────────────────────────────────
+    return res.status(200).json({
+      coursework: {
+        id: coursework._id,
+        name: coursework.name,
+        requiredSkills,
+        minTeamSize: coursework.team_size_min,
+        maxTeamSize: coursework.team_size_max,
+      },
+      team: {
+        teamId: team._id,
+        name: team.name,
+        memberCount: teamMemberProfiles.length,
+        combinedSkills: teamSkillsDisplay,
+        combinedAvailability: teamAvailability,
+      },
+      skillsStillNeeded,
+      suggestedStudents,
+    });
+  } catch (error) {
+    console.error("suggestTeamMembersForExistingTeam error:", error);
+    return res.status(500).json({
+      message: "Failed to suggest team members.",
+      error: error.message,
+    });
+  }
+}
+
 module.exports = {
   extractCourseworkSkills,
   suggestTeamMembersForNewTeam,
+  suggestTeamMembersForExistingTeam,
 };

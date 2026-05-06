@@ -3,6 +3,7 @@ const multer = require("multer");
 const {
   extractCourseworkSkills,
   suggestTeamMembersForNewTeam,
+  suggestTeamMembersForExistingTeam,
 } = require("../controllers/aiCoursework.controller");
 const { authenticate, authorize } = require("../middlewares/auth");
 
@@ -24,6 +25,13 @@ router.post(
   authorize("Student"),
   upload.single("assignmentFile"),
   extractCourseworkSkills,
+);
+
+router.get(
+  "/suggest-team-members-for-team",
+  authenticate,
+  authorize("Student"),
+  suggestTeamMembersForExistingTeam,
 );
 
 module.exports = router;
