@@ -20,9 +20,10 @@ const courseworks = require("./coursework.routes");
 const announcementRoutes = require("./announcement.routes");
 const teamRoutes = require("./team.routes");
 const profileRoutes = require("./profile.routes");
+const taskRoutes = require('./task.routes');
 // const workspaceRoutes = require('./workspace.routes');
 // const projectRoutes = require('./project.routes');
-// const taskRoutes = require('./task.routes');
+
 const aiCourseworkRoutes = require("./aiCoursework.routes");
 
 router.use("/ai", aiCourseworkRoutes);
@@ -34,10 +35,10 @@ router.use("/courseworks", courseworks);
 router.use("/announcements", announcementRoutes);
 router.use("/teams", teamRoutes);
 router.use("/profile", profileRoutes);
+router.use('/tasks', taskRoutes);
 // --- COMMENTED OUT ---
 // router.use('/workspaces', workspaceRoutes);
 // router.use('/projects', projectRoutes);
-// router.use('/tasks', taskRoutes);
 // --- END COMMENTED OUT ---
 
 // Export the main router to be used in app.js
