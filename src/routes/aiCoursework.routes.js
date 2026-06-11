@@ -4,9 +4,9 @@ const {
   extractCourseworkSkills,
   suggestTeamMembersForNewTeam,
   suggestTeamMembersForExistingTeam,
+  suggestTeamsForStudent,
 } = require("../controllers/aiCoursework.controller");
 const { authenticate, authorize } = require("../middlewares/auth");
-
 
 const router = express.Router();
 
@@ -14,10 +14,12 @@ const upload = multer({
   dest: "uploads/",
 });
 
-router.get("/suggest-team-members",
+router.get(
+  "/suggest-team-members",
   authenticate,
   authorize("Student"),
-  suggestTeamMembersForNewTeam);
+  suggestTeamMembersForNewTeam,
+);
 
 router.post(
   "/coursework/:courseworkId/extract-skills",
@@ -32,6 +34,13 @@ router.get(
   authenticate,
   authorize("Student"),
   suggestTeamMembersForExistingTeam,
+);
+
+router.post(
+  "/suggest-teams",
+  authenticate,
+  authorize("Student"),
+  suggestTeamsForStudent,
 );
 
 module.exports = router;
