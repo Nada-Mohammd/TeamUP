@@ -10,36 +10,31 @@ const {
   calculateCandidateScore,
   buildCandidateReason,
 } = require("../services/matching.service");
+const { getSemanticMatchedSkills } = require("../services/embedding.service");
 const Team = require("../models/Team");
 const ClassProfile = require("../models/ClassProfile");
 
-//extractCourseworkSkills 
+// ─── extractCourseworkSkills ──────────────────────────────────────────────────
 async function extractCourseworkSkills(req, res) {
   try {
     const { courseworkId } = req.params;
 
     if (!req.file) {
-      return res.status(400).json({
-        message: "Please upload a PDF or DOCX file.",
-      });
+      return res.status(400).json({ message: "Please upload a PDF or DOCX file." });
     }
 
     const coursework = await Coursework.findById(courseworkId);
-
     if (!coursework) {
       return res.status(404).json({ message: "Coursework not found." });
     }
 
     const text = await extractTextFromFile(req.file);
-
     if (!text || text.trim().length < 50) {
-      return res.status(400).json({
-        message: "Could not extract enough text from the file.",
-      });
+      return res.status(400).json({ message: "Could not extract enough text from the file." });
     }
 
-    const aiResult = await extractSkillsFromText(text);
-    const normalizedRequiredSkills = await normalizeSkillsWithAI(aiResult.required_skills || []);
+    const aiResult                  = await extractSkillsFromText(text);
+    const normalizedRequiredSkills  = await normalizeSkillsWithAI(aiResult.required_skills  || []);
     const normalizedPreferredSkills = await normalizeSkillsWithAI(aiResult.preferred_skills || []);
 
     coursework.ai_required_skills   = normalizedRequiredSkills;
@@ -69,31 +64,26 @@ async function extractCourseworkSkills(req, res) {
   }
 }
 
-//suggestTeamMembersForNewTeam 
+// ─── suggestTeamMembersForNewTeam ─────────────────────────────────────────────
 async function suggestTeamMembersForNewTeam(req, res) {
   try {
     const { studentId, courseworkId } = req.query;
 
-    //1. Presence check 
+    // 1. Presence check
     if (!studentId || !courseworkId) {
-      return res.status(400).json({
-        message: "studentId and courseworkId are required.",
-      });
+      return res.status(400).json({ message: "studentId and courseworkId are required." });
     }
 
-    //2. ObjectId validity 
+    // 2. ObjectId validity
     if (
       !mongoose.Types.ObjectId.isValid(studentId) ||
       !mongoose.Types.ObjectId.isValid(courseworkId)
     ) {
-      return res.status(400).json({
-        message: "Invalid studentId or courseworkId.",
-      });
+      return res.status(400).json({ message: "Invalid studentId or courseworkId." });
     }
 
-    //3. Fetch coursework
+    // 3. Fetch coursework
     const coursework = await Coursework.findById(courseworkId).lean();
-
     if (!coursework) {
       return res.status(404).json({ message: "Coursework not found." });
     }
@@ -103,25 +93,18 @@ async function suggestTeamMembersForNewTeam(req, res) {
       !coursework.ai_required_skills ||
       coursework.ai_required_skills.length === 0
     ) {
-      return res.status(400).json({
-        message: "Coursework skills are not extracted yet.",
-      });
+      return res.status(400).json({ message: "Coursework skills are not extracted yet." });
     }
 
-    //4. Fetch creator profile 
-    const creatorProfile = await StudentProfile.findOne({
-      user_id: studentId,
-    }).lean();
-
+    // 4. Fetch creator profile
+    const creatorProfile = await StudentProfile.findOne({ user_id: studentId }).lean();
     if (!creatorProfile) {
       return res.status(404).json({ message: "Student profile not found." });
     }
 
-    //5. Make sure creator does not already have a team for this coursework 
+    // 5. Check creator doesn't already have a team for this coursework
     const existingMembership = await TeamMember.aggregate([
-      {
-        $match: { studentId: new mongoose.Types.ObjectId(studentId) },
-      },
+      { $match: { studentId: new mongoose.Types.ObjectId(studentId) } },
       {
         $lookup: {
           from: "teams",
@@ -131,29 +114,24 @@ async function suggestTeamMembersForNewTeam(req, res) {
         },
       },
       { $unwind: "$team" },
-      {
-        $match: {
-          "team.courseworkId": new mongoose.Types.ObjectId(courseworkId),
-        },
-      },
+      { $match: { "team.courseworkId": new mongoose.Types.ObjectId(courseworkId) } },
     ]);
 
     if (existingMembership.length > 0) {
-      return res.status(400).json({
-        message: "You already have a team for this coursework.",
-      });
+      return res.status(400).json({ message: "You already have a team for this coursework." });
     }
 
-    //6. Compute missing skills 
-    const requiredSkills    = coursework.ai_required_skills;
-    const preferredSkills  = coursework.ai_preferred_skills;
+    // 6. Compute missing skills (required + preferred)
+    const requiredSkills      = coursework.ai_required_skills;
+    const preferredSkills     = coursework.ai_preferred_skills || [];
     const allCourseworkSkills = [...new Set([...requiredSkills, ...preferredSkills])];
+
     const skillsStillNeeded = getMissingSkills(
       allCourseworkSkills,
       creatorProfile.skills || [],
     );
 
-    //7. Build exclusion list
+    // 7. Build exclusion list
     const studentsAlreadyInCourseworkTeams = await TeamMember.aggregate([
       {
         $lookup: {
@@ -164,11 +142,7 @@ async function suggestTeamMembersForNewTeam(req, res) {
         },
       },
       { $unwind: "$team" },
-      {
-        $match: {
-          "team.courseworkId": new mongoose.Types.ObjectId(courseworkId),
-        },
-      },
+      { $match: { "team.courseworkId": new mongoose.Types.ObjectId(courseworkId) } },
       { $project: { studentId: 1 } },
     ]);
 
@@ -177,50 +151,54 @@ async function suggestTeamMembersForNewTeam(req, res) {
     );
     excludedUserIds.add(studentId.toString());
 
-    //8. Scope candidates to same class only 
+    // 8. Scope candidates to same class only
     const classEnrollments = await ClassProfile.find({
       classId:   coursework.classId,
       classRole: "member",
     }).lean();
 
-    const enrolledUserIds = classEnrollments.map((e) => e.userId.toString());
-
-    const eligibleUserIds = enrolledUserIds.filter(
-      (id) => !excludedUserIds.has(id),
-    );
+    const enrolledUserIds  = classEnrollments.map((e) => e.userId.toString());
+    const eligibleUserIds  = enrolledUserIds.filter((id) => !excludedUserIds.has(id));
 
     const candidateProfiles = await StudentProfile.find({
-      user_id: {
-        $in: eligibleUserIds.map((id) => new mongoose.Types.ObjectId(id)),
-      },
+      user_id: { $in: eligibleUserIds.map((id) => new mongoose.Types.ObjectId(id)) },
     }).lean();
 
-    // 9. Score every eligible candidate 
-    const scoredCandidates = candidateProfiles.map((profile) => {
-      const result = calculateCandidateScore(
-        profile,
-        skillsStillNeeded,
-        creatorProfile,
-        requiredSkills,             //coursework skill weight
-      );
+    // 9. Score every eligible candidate with semantic matching
+    const scoredCandidates = await Promise.all(
+      candidateProfiles.map(async (profile) => {
+        // Get semantic matches via embeddings
+        const semanticMatched = await getSemanticMatchedSkills(
+          profile.skills || [],
+          skillsStillNeeded,
+        );
 
-      return {
-        studentId:               profile.user_id,
-        profileId:               profile._id,
-        name:                    `${profile.first_name} ${profile.last_name}`,
-        username:                profile.username,
-        email:                   profile.email,
-        skills:                  profile.skills,
-        availability:            profile.availability,
-        gpa:                     profile.gpa,
-        score:                   result.score,
-        matchedSkills:           result.matchedSkills,
-        courseworkMatchedSkills: result.courseworkMatchedSkills,
-        breakdown:               result.breakdown,
-      };
-    });
+        const result = calculateCandidateScore(
+          profile,
+          skillsStillNeeded,
+          creatorProfile,
+          allCourseworkSkills,
+          semanticMatched,        // ← pass semantic matches
+        );
 
-    // ── 10. Split into exact matches vs fallback ──────────────────────────────
+        return {
+          studentId:               profile.user_id,
+          profileId:               profile._id,
+          name:                    `${profile.first_name} ${profile.last_name}`,
+          username:                profile.username,
+          email:                   profile.email,
+          skills:                  profile.skills,
+          availability:            profile.availability,
+          gpa:                     profile.gpa,
+          score:                   result.score,
+          matchedSkills:           result.matchedSkills,
+          courseworkMatchedSkills: result.courseworkMatchedSkills,
+          breakdown:               result.breakdown,
+        };
+      }),
+    );
+
+    // 10. Split exact+semantic matches vs fallback
     const exactMatches = scoredCandidates
       .filter((s) => s.matchedSkills.length > 0)
       .sort((a, b) => b.score - a.score);
@@ -230,9 +208,9 @@ async function suggestTeamMembersForNewTeam(req, res) {
       .sort((a, b) => b.score - a.score);
 
     const hasExactMatch = exactMatches.length > 0;
-    const pool = hasExactMatch ? exactMatches : fallbackMatches;
+    const pool          = hasExactMatch ? exactMatches : fallbackMatches;
 
-    // ── 11. Attach reason ─────────────────────────────────────────────────────
+    // 11. Attach reason
     const suggestedStudents = pool.map((s) => ({
       ...s,
       reason: buildCandidateReason(
@@ -243,7 +221,7 @@ async function suggestTeamMembersForNewTeam(req, res) {
       ),
     }));
 
-    // ── 12. Build suggestion status ───────────────────────────────────────────
+    // 12. Build suggestion status
     let suggestionStatus;
 
     if (eligibleUserIds.length === 0) {
@@ -271,7 +249,7 @@ async function suggestTeamMembersForNewTeam(req, res) {
       };
     }
 
-    // ── 13. Response ──────────────────────────────────────────────────────────
+    // 13. Response
     return res.status(200).json({
       coursework: {
         id:          coursework._id,
@@ -300,28 +278,26 @@ async function suggestTeamMembersForNewTeam(req, res) {
   }
 }
 
-// ─── Action 2 ────────────────────────────────────────────────────────────────
+// ─── suggestTeamMembersForExistingTeam ────────────────────────────────────────
 async function suggestTeamMembersForExistingTeam(req, res) {
   try {
     const { studentId, teamId, courseworkId } = req.query;
 
-    // ── 1. Presence check ────────────────────────────────────────────────────
+    // 1. Presence check
     if (!studentId || !teamId || !courseworkId) {
-      return res.status(400).json({
-        message: "studentId, teamId and courseworkId are required.",
-      });
+      return res.status(400).json({ message: "studentId, teamId and courseworkId are required." });
     }
 
-    // ── 2. ObjectId validity ─────────────────────────────────────────────────
+    // 2. ObjectId validity
     if (
       !mongoose.Types.ObjectId.isValid(studentId) ||
-      !mongoose.Types.ObjectId.isValid(teamId) ||
+      !mongoose.Types.ObjectId.isValid(teamId)    ||
       !mongoose.Types.ObjectId.isValid(courseworkId)
     ) {
       return res.status(400).json({ message: "Invalid studentId, teamId or courseworkId." });
     }
 
-    // ── 3. Fetch coursework ───────────────────────────────────────────────────
+    // 3. Fetch coursework
     const coursework = await Coursework.findById(courseworkId).lean();
     if (!coursework) {
       return res.status(404).json({ message: "Coursework not found." });
@@ -335,34 +311,23 @@ async function suggestTeamMembersForExistingTeam(req, res) {
       return res.status(400).json({ message: "Coursework skills are not extracted yet." });
     }
 
-    // ── 4. Verify team belongs to this coursework ────────────────────────────
-    const team = await Team.findOne({
-      _id: teamId,
-      courseworkId,
-    }).lean();
-
+    // 4. Verify team belongs to this coursework
+    const team = await Team.findOne({ _id: teamId, courseworkId }).lean();
     if (!team) {
       return res.status(404).json({
         message: "Team not found or does not belong to this coursework.",
       });
     }
 
-    // ── 5. Verify requesting student is actually a member of the team ─────────
-    const requestingMembership = await TeamMember.findOne({
-      teamId,
-      studentId,
-    }).lean();
-
+    // 5. Verify requesting student is a member of the team
+    const requestingMembership = await TeamMember.findOne({ teamId, studentId }).lean();
     if (!requestingMembership) {
-      return res.status(403).json({
-        message: "You are not a member of this team.",
-      });
+      return res.status(403).json({ message: "You are not a member of this team." });
     }
 
-    // ── 6. Fetch all team members' profiles ──────────────────────────────────
-    const teamMemberDocs = await TeamMember.find({ teamId }).lean();
-    const teamMemberUserIds = teamMemberDocs.map((m) => m.studentId);
-
+    // 6. Fetch all team members' profiles
+    const teamMemberDocs     = await TeamMember.find({ teamId }).lean();
+    const teamMemberUserIds  = teamMemberDocs.map((m) => m.studentId);
     const teamMemberProfiles = await StudentProfile.find({
       user_id: { $in: teamMemberUserIds },
     }).lean();
@@ -371,50 +336,43 @@ async function suggestTeamMembersForExistingTeam(req, res) {
       return res.status(404).json({ message: "No team member profiles found." });
     }
 
-    // ── 7. Build aggregate team profile ──────────────────────────────────────
-    //   Skills  → union (normalised lowercase for deduplication, keep originals)
-    const teamSkillsSet = new Set();
+    // 7. Build aggregate team profile
+    const teamSkillsSet     = new Set();
     const teamSkillsDisplay = [];
     for (const profile of teamMemberProfiles) {
       for (const skill of profile.skills || []) {
         const normalised = skill.trim().toLowerCase();
         if (!teamSkillsSet.has(normalised)) {
           teamSkillsSet.add(normalised);
-          teamSkillsDisplay.push(skill); // keep original casing for display
+          teamSkillsDisplay.push(skill);
         }
       }
     }
 
-    //   Availability → union of all unique slots
-    //   getAvailabilityCompatibility already handles arrays, so pass the union
-    //   directly as the "team availability" for scoring.
     const teamAvailabilitySet = new Set();
     for (const profile of teamMemberProfiles) {
       const slots = Array.isArray(profile.availability)
         ? profile.availability
-        : profile.availability
-        ? [profile.availability]
-        : [];
+        : profile.availability ? [profile.availability] : [];
       for (const slot of slots) {
         if (slot) teamAvailabilitySet.add(slot.trim().toLowerCase());
       }
     }
     const teamAvailability = [...teamAvailabilitySet];
 
-    // Synthetic "creator" object that the shared scoring helper understands
     const teamAggregateProfile = {
-      skills: teamSkillsDisplay,
+      skills:       teamSkillsDisplay,
       availability: teamAvailability,
     };
 
-    // ── 8. Compute missing skills ─────────────────────────────────────────────
-    const requiredSkills = coursework.ai_required_skills;
-    const skillsStillNeeded = getMissingSkills(requiredSkills, teamSkillsDisplay);
+    // 8. Compute missing skills (required + preferred)
+    const requiredSkills      = coursework.ai_required_skills;
+    const preferredSkills     = coursework.ai_preferred_skills || [];
+    const allCourseworkSkills = [...new Set([...requiredSkills, ...preferredSkills])];
 
-    // ── 9. Build exclusion list ───────────────────────────────────────────────
-    //   Exclude every student already in ANY team for this coursework
-    //   (same logic as Action 1, team members are already in teams so they
-    //   are naturally included in this query result too)
+    const skillsStillNeeded = getMissingSkills(allCourseworkSkills, teamSkillsDisplay);
+
+    // 9. Build exclusion list
     const studentsAlreadyInCourseworkTeams = await TeamMember.aggregate([
       {
         $lookup: {
@@ -425,75 +383,76 @@ async function suggestTeamMembersForExistingTeam(req, res) {
         },
       },
       { $unwind: "$team" },
-      {
-        $match: {
-          "team.courseworkId": new mongoose.Types.ObjectId(courseworkId),
-        },
-      },
+      { $match: { "team.courseworkId": new mongoose.Types.ObjectId(courseworkId) } },
       { $project: { studentId: 1 } },
     ]);
 
     const excludedUserIds = new Set(
-      studentsAlreadyInCourseworkTeams.map((m) => m.studentId.toString())
+      studentsAlreadyInCourseworkTeams.map((m) => m.studentId.toString()),
     );
 
-    // ── 10. Fetch & score candidates ─────────────────────────────────────────
+    // 10. Fetch & score candidates
     const classEnrollments = await ClassProfile.find({
-      classId: coursework.classId,
+      classId:   coursework.classId,
       classRole: "member",
     }).lean();
-    
-    const enrolledUserIds = classEnrollments.map((e) => e.userId.toString());
-    
-    const eligibleUserIds = enrolledUserIds.filter(
-      (id) => !excludedUserIds.has(id)
-    );
-    
+
+    const enrolledUserIds  = classEnrollments.map((e) => e.userId.toString());
+    const eligibleUserIds  = enrolledUserIds.filter((id) => !excludedUserIds.has(id));
+
     const candidateProfiles = await StudentProfile.find({
-      user_id: {
-        $in: eligibleUserIds.map((id) => new mongoose.Types.ObjectId(id)),
-      },
+      user_id: { $in: eligibleUserIds.map((id) => new mongoose.Types.ObjectId(id)) },
     }).lean();
 
-    const suggestedStudents = candidateProfiles
-    .map((profile) => {
-      const result = calculateCandidateScore(
-        profile,
-        skillsStillNeeded,
-        teamAggregateProfile,
-      );
-  
-      return {
-        studentId: profile.user_id,
-        profileId: profile._id,
-        name: `${profile.first_name} ${profile.last_name}`,
-        username: profile.username,
-        email: profile.email,
-        skills: profile.skills,
-        availability: profile.availability,
-        gpa: profile.gpa,
-        score: result.score,
-        matchedSkills: result.matchedSkills,
-        breakdown: result.breakdown,
-        reason: buildCandidateReason(profile, result.matchedSkills),
-      };
-    })
-    .sort((a, b) => b.score - a.score);
+    const scoredCandidates = await Promise.all(
+      candidateProfiles.map(async (profile) => {
+        const semanticMatched = await getSemanticMatchedSkills(
+          profile.skills || [],
+          skillsStillNeeded,
+        );
 
-    // ── 11. Response ──────────────────────────────────────────────────────────
+        const result = calculateCandidateScore(
+          profile,
+          skillsStillNeeded,
+          teamAggregateProfile,
+          allCourseworkSkills,
+          semanticMatched,
+        );
+
+        return {
+          studentId:               profile.user_id,
+          profileId:               profile._id,
+          name:                    `${profile.first_name} ${profile.last_name}`,
+          username:                profile.username,
+          email:                   profile.email,
+          skills:                  profile.skills,
+          availability:            profile.availability,
+          gpa:                     profile.gpa,
+          score:                   result.score,
+          matchedSkills:           result.matchedSkills,
+          courseworkMatchedSkills: result.courseworkMatchedSkills,
+          breakdown:               result.breakdown,
+          reason:                  buildCandidateReason(profile, result.matchedSkills),
+        };
+      }),
+    );
+
+    const suggestedStudents = scoredCandidates.sort((a, b) => b.score - a.score);
+
+    // 11. Response
     return res.status(200).json({
       coursework: {
-        id: coursework._id,
-        name: coursework.name,
+        id:          coursework._id,
+        name:        coursework.name,
         requiredSkills,
         minTeamSize: coursework.team_size_min,
         maxTeamSize: coursework.team_size_max,
       },
       team: {
-        teamId: team._id,
-        name: team.name,
-        memberCount: teamMemberProfiles.length,
-        combinedSkills: teamSkillsDisplay,
+        teamId:               team._id,
+        name:                 team.name,
+        memberCount:          teamMemberProfiles.length,
+        combinedSkills:       teamSkillsDisplay,
         combinedAvailability: teamAvailability,
       },
       skillsStillNeeded,

@@ -1,38 +1,31 @@
 function normalizeSkills(skills = []) {
   if (!Array.isArray(skills)) return [];
-
   return skills
-    .map((skill) =>
+    .flatMap((skill) =>
       String(skill || "")
-        .trim()
-        .toLowerCase()
+        .split(",")
+        .map((s) => s.trim().toLowerCase())
     )
     .filter(Boolean);
 }
 
 function getMissingSkills(requiredSkills = [], coveredSkills = []) {
   const required = [...new Set(normalizeSkills(requiredSkills || []))];
-  const covered = new Set(normalizeSkills(coveredSkills || []));
-
+  const covered  = new Set(normalizeSkills(coveredSkills || []));
   return required.filter((skill) => !covered.has(skill));
 }
 
 function getMatchedSkills(studentSkills = [], targetSkills = []) {
   const studentSet = new Set(normalizeSkills(studentSkills || []));
-  const target = [...new Set(normalizeSkills(targetSkills || []))];
-
+  const target     = [...new Set(normalizeSkills(targetSkills || []))];
   return target.filter((skill) => studentSet.has(skill));
 }
 
 function normalizeAvailability(value) {
   if (!value) return [];
-
   if (Array.isArray(value)) {
-    return value
-      .map((a) => String(a || "").trim().toLowerCase())
-      .filter(Boolean);
+    return value.map((a) => String(a || "").trim().toLowerCase()).filter(Boolean);
   }
-
   return [String(value).trim().toLowerCase()].filter(Boolean);
 }
 
@@ -40,66 +33,62 @@ function getAvailabilityCompatibility(
   creatorAvailability = [],
   candidateAvailability = [],
 ) {
-  const creator = normalizeAvailability(creatorAvailability);
+  const creator   = normalizeAvailability(creatorAvailability);
   const candidate = normalizeAvailability(candidateAvailability);
 
   if (!creator.length || !candidate.length) return 0.4;
 
-  const creatorAllDay = creator.includes("all day");
+  const creatorAllDay   = creator.includes("all day");
   const candidateAllDay = candidate.includes("all day");
 
   if (creatorAllDay && candidateAllDay) return 1;
   if (creatorAllDay || candidateAllDay) return 0.9;
 
   const overlap = creator.filter((slot) => candidate.includes(slot));
-
   if (overlap.length === 0) return 0.2;
-
   return overlap.length / Math.max(creator.length, candidate.length);
 }
 
 function getRatingScore(ratings = []) {
-  if (!Array.isArray(ratings) || ratings.length === 0) {
-    return 0.5;
-  }
-
+  if (!Array.isArray(ratings) || ratings.length === 0) return 0.5;
   const average =
-    ratings.reduce((sum, rating) => sum + Number(rating?.stars || 0), 0) /
-    ratings.length;
-
+    ratings.reduce((sum, r) => sum + Number(r?.stars || 0), 0) / ratings.length;
   return Math.min(Math.max(average / 5, 0), 1);
 }
 
 function getGpaScore(gpa) {
-  if (gpa == null) {
-    return 0.5;
-  }
-
+  if (gpa == null) return 0.5;
   return Math.min(Math.max(Number(gpa) / 4, 0), 1);
 }
 
-// 4th param defaults to [] → existing 3-arg calls are 100% unaffected
 function calculateCandidateScore(
   candidateProfile,
   skillsNeeded = [],
   creatorProfile,
-  courseworkRequiredSkills = [],  // ← optional, defaults to [] for old calls
+  courseworkRequiredSkills = [],
+  semanticMatchedSkills = [],   // ← new param, defaults to []
 ) {
-  const matchedSkills = getMatchedSkills(
-    candidateProfile?.skills || [],
-    skillsNeeded || [],
-  );
+  // Merge exact + semantic matched skills
+  const allMatchedSkills = [
+    ...new Set([
+      ...getMatchedSkills(candidateProfile?.skills || [], skillsNeeded),
+      ...semanticMatchedSkills,
+    ]),
+  ];
 
   const skillScore =
     skillsNeeded.length === 0
       ? 1
-      : matchedSkills.length / skillsNeeded.length;
+      : allMatchedSkills.length / skillsNeeded.length;
 
-  // Only runs meaningfully when 4th arg is passed, otherwise 0/0 → score = 1 (neutral)
-  const courseworkMatchedSkills = getMatchedSkills(
-    candidateProfile?.skills || [],
-    courseworkRequiredSkills || [],
-  );
+  const courseworkMatchedSkills = [
+    ...new Set([
+      ...getMatchedSkills(candidateProfile?.skills || [], courseworkRequiredSkills),
+      ...semanticMatchedSkills.filter((s) =>
+        normalizeSkills(courseworkRequiredSkills).includes(s.toLowerCase())
+      ),
+    ]),
+  ];
 
   const courseworkSkillScore =
     courseworkRequiredSkills.length === 0
@@ -112,11 +101,8 @@ function calculateCandidateScore(
   );
 
   const ratingScore = getRatingScore(candidateProfile?.ratings || []);
-  const gpaScore = getGpaScore(candidateProfile?.gpa);
+  const gpaScore    = getGpaScore(candidateProfile?.gpa);
 
-  // When courseworkRequiredSkills=[] (old calls): courseworkSkillScore=1,
-  // so the 0.15 weight just adds a flat bonus — scores stay comparable.
-  // Weights: missing-skill 45% | coursework coverage 15% | availability 20% | rating 10% | gpa 10%
   const finalScore =
     skillScore           * 0.45 +
     courseworkSkillScore * 0.15 +
@@ -126,27 +112,26 @@ function calculateCandidateScore(
 
   return {
     score: Number((finalScore * 100).toFixed(2)),
-    matchedSkills,
-    courseworkMatchedSkills,  // [] when called with 3 args — safe to spread/ignore
+    matchedSkills: allMatchedSkills,
+    courseworkMatchedSkills,
     breakdown: {
-      skillScore:           Number((skillScore * 100).toFixed(2)),
+      skillScore:           Number((skillScore           * 100).toFixed(2)),
       courseworkSkillScore: Number((courseworkSkillScore * 100).toFixed(2)),
-      availabilityScore:    Number((availabilityScore * 100).toFixed(2)),
-      ratingScore:          Number((ratingScore * 100).toFixed(2)),
-      gpaScore:             Number((gpaScore * 100).toFixed(2)),
+      availabilityScore:    Number((availabilityScore    * 100).toFixed(2)),
+      ratingScore:          Number((ratingScore          * 100).toFixed(2)),
+      gpaScore:             Number((gpaScore             * 100).toFixed(2)),
     },
   };
 }
 
-// Extra params default to [] / true → existing 2-arg calls are 100% unaffected
 function buildCandidateReason(
   candidateProfile,
   matchedSkills = [],
-  courseworkMatchedSkills = [],  // ← ignored by old calls
-  hasExactMatch = true,          // ← ignored by old calls
+  courseworkMatchedSkills = [],
+  hasExactMatch = true,
 ) {
   const availabilityArr = normalizeAvailability(candidateProfile?.availability);
-  const availability = availabilityArr.length
+  const availability    = availabilityArr.length
     ? availabilityArr.join(", ")
     : "not specified";
 
