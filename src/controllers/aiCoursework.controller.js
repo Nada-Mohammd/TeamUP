@@ -146,8 +146,10 @@ async function suggestTeamMembersForNewTeam(req, res) {
 
     //6. Compute missing skills 
     const requiredSkills    = coursework.ai_required_skills;
+    const preferredSkills  = coursework.ai_preferred_skills;
+    const allCourseworkSkills = [...new Set([...requiredSkills, ...preferredSkills])];
     const skillsStillNeeded = getMissingSkills(
-      requiredSkills,
+      allCourseworkSkills,
       creatorProfile.skills || [],
     );
 

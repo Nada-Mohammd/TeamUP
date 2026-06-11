@@ -1,29 +1,29 @@
 const courseworkService = require("../services/coursework.service");
 const Coursework = require("../models/CourseWork");
-
+const { normalizeSkillsWithAI } = require("../services/skillNormalization.service");
+const { extractTextFromFile } = require("../services/fileText.service");
+const { extractSkillsFromText } = require("../services/aiSkillExtraction.service");
+// POST /api/courseworks/create/:classId
 // POST /api/courseworks/create/:classId
 const createCoursework = async (req, res) => {
   try {
     const instructorId = req.user._id;
     const { classId } = req.params;
 
-    // Prepare uploaded files (Cloudinary URLs only)
     const files =
       req.files?.map((file) => ({
         file_name: file.originalname,
-        file_url: file.path, // direct Cloudinary URL
+        file_url: file.path,
         file_size: file.size,
         uploaded_by: instructorId,
       })) || [];
 
-    // Parse grading criteria if sent as string
     let gradingCriteria = req.body.grading_criteria;
     if (typeof gradingCriteria === "string" && gradingCriteria.trim()) {
       gradingCriteria = JSON.parse(gradingCriteria);
     }
     gradingCriteria = Array.isArray(gradingCriteria) ? gradingCriteria : [];
 
-    // Prepare coursework data
     const courseworkData = {
       name: req.body.name,
       description: req.body.description?.trim() || "",
@@ -54,6 +54,38 @@ const createCoursework = async (req, res) => {
       courseworkData,
     );
 
+    // ── Auto-extract skills from the first uploaded file ────────────────────
+    if (req.files?.length > 0) {
+      try {
+        const fileUrl = req.files[0].path; // Cloudinary URL
+        const originalname = req.files[0].originalname;
+        const mimetype = req.files[0].mimetype;
+
+        const response = await fetch(fileUrl);
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+
+        const text = await extractTextFromFile({ buffer, originalname, mimetype });
+
+        if (text && text.trim().length >= 50) {
+          const aiResult = await extractSkillsFromText(text);
+          const normalizedRequiredSkills  = await normalizeSkillsWithAI(aiResult.required_skills  || []);
+          const normalizedPreferredSkills = await normalizeSkillsWithAI(aiResult.preferred_skills || []);
+
+          newCoursework.ai_required_skills   = normalizedRequiredSkills;
+          newCoursework.ai_preferred_skills  = normalizedPreferredSkills;
+          newCoursework.ai_recommended_roles = aiResult.recommended_roles || [];
+          newCoursework.ai_difficulty        = aiResult.difficulty || "unknown";
+          newCoursework.ai_analysis_done     = true;
+
+          await newCoursework.save();
+        }
+      } catch (aiError) {
+        console.warn("AI skill extraction failed during create:", aiError.message);
+      }
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
     const courseworkWithUrls = newCoursework.toObject();
     courseworkWithUrls.files = courseworkWithUrls.files.map((file) => ({
       ...file,
@@ -64,7 +96,7 @@ const createCoursework = async (req, res) => {
     res.status(201).json({
       success: true,
       message: "Coursework created successfully",
-      data: newCoursework,
+      data: courseworkWithUrls,
     });
   } catch (err) {
     res.status(400).json({
