@@ -29,6 +29,99 @@ const createTask = async (req, res) => {
   }
 };
 
+const deleteTask = async (req, res) => {
+
+  try {
+
+    const { taskId } = req.params;
+
+    const userId = req.user.id;
+
+    const result =
+      await taskService.deleteTask(
+        taskId,
+        userId
+      );
+
+    return res.status(200).json({
+      success: true,
+      message: result.message,
+    });
+
+  } catch (err) {
+
+    return res.status(400).json({
+      success: false,
+      message: err.message,
+    });
+
+  }
+
+};
+
+const getTaskDetails = async (req, res) => {
+  try {
+    const { taskId } = req.params;
+
+    const task =
+      await taskService.getTaskDetails(
+        taskId
+      );
+
+    return res.status(200).json({
+      success: true,
+      data: task,
+    });
+
+  } catch (err) {
+
+    return res.status(404).json({
+      success: false,
+      message: err.message,
+    });
+
+  }
+};
+
+const uploadDeliverable = async (
+  req,
+  res
+) => {
+
+  try {
+
+    const { taskId } = req.params;
+
+    const userId = req.user.id;
+
+    const task =
+      await taskService.uploadDeliverable(
+        taskId,
+        userId,
+        req.file
+      );
+
+    return res.status(200).json({
+      success: true,
+      message:
+        "Deliverable uploaded successfully.",
+      data: task,
+    });
+
+  } catch (err) {
+
+    return res.status(400).json({
+      success: false,
+      message: err.message,
+    });
+
+  }
+
+};
+
 module.exports = {
   createTask,
+  deleteTask,
+  getTaskDetails,
+  uploadDeliverable,
 };
