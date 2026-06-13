@@ -35,6 +35,7 @@ const notificationSchema = new Schema(
         "TEAM_REQUEST_REJECTED", // Student notified their request was rejected
         "TEAM_MEMBER_REMOVED",
         "TEAM_LEADER_ASSIGNED",
+        "TASK_UPDATED",
         
 
       ],

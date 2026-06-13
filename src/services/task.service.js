@@ -2,8 +2,10 @@ const Task = require("../models/Task");
 const Team = require("../models/Team");
 const TeamMember = require("../models/TeamMembers");
 const Coursework = require("../models/Coursework");
+const User = require("../models/User");
 const path = require("path");
-
+const notificationService = require("./notification.service");
+const Class = require("../models/Class");
 const createTask = async (userId, teamId, taskData) => {
   // Step 1: Find team
   const team = await Team.findById(teamId);
@@ -280,10 +282,314 @@ const uploadDeliverable = async (
   return task;
 };
 
+const updateTask = async (
+  taskId,
+  userId,
+  updateData
+) => {
+
+  const task = await Task.findById(taskId)
+    .populate(
+      "creator_id",
+      "first_name last_name"
+    )
+    .populate(
+      "assignee_id",
+      "first_name last_name"
+    );
+
+  if (!task) {
+    throw new Error("Task not found.");
+  }
+
+  const isCreator =
+    task.creator_id._id.toString() ===
+    userId.toString();
+
+  const isAssignee =
+    task.assignee_id &&
+    task.assignee_id._id.toString() ===
+    userId.toString();
+
+  if (!isCreator && !isAssignee) {
+    throw new Error(
+      "Only the creator or assigned member can edit this task."
+    );
+  }
+
+  const team = await Team.findById(
+    task.team_id
+  );
+
+  if (!team) {
+    throw new Error("Team not found.");
+  }
+
+  const coursework =
+    await Coursework.findById(
+      team.courseworkId
+    );
+
+  if (!coursework) {
+    throw new Error(
+      "Coursework not found."
+    );
+  }
+
+  const classObj = await Class.findById(
+    coursework.classId
+  );
+
+  if (!classObj) {
+    throw new Error(
+      "Class not found."
+    );
+  }
+
+  /*
+    Deadline validation
+  */
+
+  if (
+    updateData.deadline &&
+    new Date(updateData.deadline) >
+      new Date(coursework.deadline)
+  ) {
+    throw new Error(
+      `Task deadline cannot exceed the project deadline (${new Date(coursework.deadline).toLocaleDateString()}).`
+    );
+  }
+
+  /*
+    Update editable fields only
+  */
+
+  task.name =
+    updateData.name ?? task.name;
+
+  task.description =
+    updateData.description ??
+    task.description;
+
+  task.deadline =
+    updateData.deadline ??
+    task.deadline;
+
+  task.deliverable_type =
+    updateData.deliverable_type ??
+    task.deliverable_type;
+
+  await task.save();
+
+  /*
+    Notification Rules
+  */
+
+  const actorName = isCreator
+    ? `${task.creator_id.first_name} ${task.creator_id.last_name}`
+    : `${task.assignee_id.first_name} ${task.assignee_id.last_name}`;
+
+  const notificationMessage =
+`${classObj.course_code} | ${coursework.name}
+
+${actorName} updated the task: ${task.name}`;
+
+  /*
+    Creator edited task
+    Notify assignee
+  */
+
+  if (
+    isCreator &&
+    task.assignee_id
+  ) {
+
+    await notificationService.createNotification({
+      userId:
+        task.assignee_id._id,
+
+      type: "TASK_UPDATED",
+
+      message:
+        notificationMessage,
+
+      referenceId:
+        task._id,
+
+      courseCode:
+        classObj.course_code,
+
+      classColor:
+        classObj.class_color,
+    });
+  }
+
+  /*
+    Assignee edited task
+    Notify creator
+  */
+
+  if (
+    isAssignee &&
+    task.creator_id
+  ) {
+
+    await notificationService.createNotification({
+      userId:
+        task.creator_id._id,
+
+      type: "TASK_UPDATED",
+
+      message:
+        notificationMessage,
+
+      referenceId:
+        task._id,
+
+      courseCode:
+        classObj.course_code,
+
+      classColor:
+        classObj.class_color,
+    });
+  }
+
+  return task;
+};
+
+
+const getTeamTasks = async (
+  teamId,
+  page,
+  limit,
+  search
+) => {
+
+  const team = await Team.findById(teamId);
+
+  if (!team) {
+    throw new Error("Team not found.");
+  }
+
+  const skip =
+    (page - 1) * limit;
+
+  const query = {
+    team_id: teamId,
+  };
+
+  /*
+    Search by:
+    - Task name
+    - Assignee first name
+    - Assignee last name
+  */
+
+  if (search) {
+
+    const matchingUsers =
+      await User.find({
+        $or: [
+          {
+            first_name: {
+              $regex: search,
+              $options: "i",
+            },
+          },
+          {
+            last_name: {
+              $regex: search,
+              $options: "i",
+            },
+          },
+        ],
+      }).select("_id");
+
+    const assigneeIds =
+      matchingUsers.map(
+        (user) => user._id
+      );
+
+    query.$or = [
+      {
+        name: {
+          $regex: search,
+          $options: "i",
+        },
+      },
+      {
+        assignee_id: {
+          $in: assigneeIds,
+        },
+      },
+    ];
+  }
+
+  const total =
+    await Task.countDocuments(query);
+
+  const tasks = await Task.find(query)
+    .populate(
+      "assignee_id",
+      "first_name last_name profile_picture"
+    )
+    .sort({
+      deadline: 1,
+      createdAt: -1,
+    })
+    .skip(skip)
+    .limit(limit);
+
+  const formattedTasks =
+    tasks.map((task) => ({
+
+      id: task._id,
+
+      task_name: task.name,
+
+      assignee: task.assignee_id
+        ? {
+            id: task.assignee_id._id,
+
+            name:
+              `${task.assignee_id.first_name} ${task.assignee_id.last_name}`,
+
+            profile_picture:
+              task.assignee_id.profile_picture,
+          }
+        : null,
+
+      status: task.status,
+
+      deadline: task.deadline,
+
+      deliverable_url:
+        task.deliverable_file_url,
+
+      completed_at:
+        task.marked_as_done_at,
+    }));
+
+  return {
+
+    tasks: formattedTasks,
+
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages:
+        Math.ceil(total / limit),
+    },
+  };
+};
+
 
 module.exports = {
   createTask,
   getTaskDetails,
    uploadDeliverable,
+   updateTask,
+   getTeamTasks,
   deleteTask
 };

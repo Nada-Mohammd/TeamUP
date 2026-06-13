@@ -31,8 +31,22 @@ router.get(
 router.patch(
   "/:taskId/deliverable",
   authenticate,
+  authorize("Student"),
   upload.single("file"),
   taskController.uploadDeliverable
+);
+
+router.put(
+  "/:taskId",
+  authenticate,
+  authorize("Student"),
+  taskController.updateTask
+);
+
+router.get(
+  "/team/:teamId",
+  authenticate,
+  taskController.getTeamTasks
 );
 
 module.exports = router;
