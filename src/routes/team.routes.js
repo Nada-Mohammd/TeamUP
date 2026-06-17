@@ -91,4 +91,10 @@ router.delete(
   teamController.kickStudentFromTeam,
 );
 
+router.get(
+  "/:teamId/members",
+  authenticate,
+  teamController.getTeamMembers
+);
+
 module.exports = router;

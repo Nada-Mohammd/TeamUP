@@ -302,6 +302,33 @@ const kickStudentFromTeam = async (req, res) => {
   }
 };
 
+const getTeamMembers = async (req, res) => {
+  try {
+
+    const { teamId } = req.params;
+
+    const members =
+      await teamService.getTeamMembers(
+        teamId
+      );
+
+    return res.status(200).json({
+      success: true,
+      message:
+        "Team members retrieved successfully.",
+      data: members,
+    });
+
+  } catch (error) {
+
+    return res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+
+  }
+};
+
 module.exports = {
   createTeam,
   lockTeam,
@@ -315,4 +342,5 @@ module.exports = {
   getStudentTeams,
   getInstructorTeams,
   kickStudentFromTeam,
+  getTeamMembers
 };

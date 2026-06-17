@@ -7,6 +7,7 @@ const User = require("../models/User");
 const TeamJoinRequest = require("../models/TeamJoinRequest");
 const Notification = require("../models/Notification");
 const { onlineUsers, io } = require("../sockets/socket");
+const StudentProfile = require("../models/StudentProfile");
 const notificationService = require("./notification.service");
 const mongoose = require("mongoose");
 
@@ -1158,6 +1159,93 @@ If you believe this action was made in error, please contact your instructor.`,
   return true;
 };
 
+const getTeamMembers = async (teamId) => {
+
+  const team = await Team.findById(teamId);
+
+  if (!team) {
+    throw new Error("Team not found.");
+  }
+
+  const members = await TeamMember.find({
+    teamId,
+  })
+    .populate(
+      "studentId",
+      "first_name last_name email"
+    );
+
+  const userIds = members.map(
+    (member) => member.studentId._id
+  );
+
+  const profiles = await StudentProfile.find({
+    user_id: { $in: userIds },
+  });
+
+  const profileMap = {};
+
+  profiles.forEach((profile) => {
+    profileMap[
+      profile.user_id.toString()
+    ] = profile;
+  });
+
+  const formattedMembers = members.map(
+    (member) => {
+
+      const profile =
+        profileMap[
+          member.studentId._id.toString()
+        ];
+
+      return {
+
+        id: member._id,
+
+        role: member.role,
+
+        joined_at: member.joinedAt,
+
+        student: {
+          id: member.studentId._id,
+
+          first_name:
+            member.studentId.first_name,
+
+          last_name:
+            member.studentId.last_name,
+
+          email:
+            member.studentId.email,
+
+          profile_picture:
+            profile?.profile_picture
+              ?.storagePath || null,
+        },
+      };
+    }
+  );
+
+  formattedMembers.sort((a, b) => {
+
+    if (a.role === "LEADER") {
+      return -1;
+    }
+
+    if (b.role === "LEADER") {
+      return 1;
+    }
+
+    return (
+      new Date(a.joined_at) -
+      new Date(b.joined_at)
+    );
+  });
+
+  return formattedMembers;
+};
+
 module.exports = {
   createTeam,
   lockTeam,
@@ -1171,4 +1259,5 @@ module.exports = {
   sendTeamInvitation,
   respondToTeamInvitation,
   kickStudentFromTeam,
+  getTeamMembers
 };
