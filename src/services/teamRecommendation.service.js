@@ -167,6 +167,7 @@ function calculateTeamRecommendationScore({
       profileId: memberProfile?._id,
       name: `${memberProfile?.first_name || ""} ${memberProfile?.last_name || ""}`.trim(),
       username: memberProfile?.username,
+      profilePicture: memberProfile?.profile_picture,
       skills: memberProfile?.skills || [],
       availability: normalizeAvailabilityValue(memberProfile?.availability),
       gpa: memberProfile?.gpa,
