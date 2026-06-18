@@ -21,19 +21,12 @@ const createTask = async (userId, teamId, taskData) => {
   });
 
   if (!membership) {
-    throw new Error(
-      "Only workspace members can create tasks."
-    );
+    throw new Error("Only workspace members can create tasks.");
   }
 
   // Step 3: Validate required fields
-  const {
-    name,
-    description,
-    deadline,
-    deliverable_type,
-    assignee_id,
-  } = taskData;
+  const { name, description, deadline, deliverable_type, assignee_id } =
+    taskData;
 
   if (!name?.trim()) {
     throw new Error("Task name is required.");
@@ -53,23 +46,18 @@ const createTask = async (userId, teamId, taskData) => {
 
   // Step 4: Validate assignee belongs to team
   if (assignee_id) {
-    const assigneeMembership =
-      await TeamMember.findOne({
-        teamId,
-        studentId: assignee_id,
-      });
+    const assigneeMembership = await TeamMember.findOne({
+      teamId,
+      studentId: assignee_id,
+    });
 
     if (!assigneeMembership) {
-      throw new Error(
-        "Assignee must be a member of the team."
-      );
+      throw new Error("Assignee must be a member of the team.");
     }
   }
 
   // Step 5: Get coursework
-  const coursework = await Coursework.findById(
-    team.courseworkId
-  );
+  const coursework = await Coursework.findById(team.courseworkId);
 
   if (!coursework) {
     throw new Error("Coursework not found.");
@@ -78,12 +66,9 @@ const createTask = async (userId, teamId, taskData) => {
   const projectDeadline = coursework.deadline;
 
   // Step 6: Validate task deadline
-  if (
-    new Date(deadline) >
-    new Date(projectDeadline)
-  ) {
+  if (new Date(deadline) > new Date(projectDeadline)) {
     throw new Error(
-      `Task deadline cannot exceed the project deadline (${new Date(projectDeadline).toLocaleDateString()}).`
+      `Task deadline cannot exceed the project deadline (${new Date(projectDeadline).toLocaleDateString()}).`,
     );
   }
 
@@ -109,9 +94,7 @@ const createTask = async (userId, teamId, taskData) => {
   return task;
 };
 
-
 const deleteTask = async (taskId, userId) => {
-
   // Step 1: Find task
   const task = await Task.findById(taskId);
 
@@ -120,20 +103,14 @@ const deleteTask = async (taskId, userId) => {
   }
 
   // Step 2: Verify creator
-  if (
-    task.creator_id.toString() !==
-    userId.toString()
-  ) {
-    throw new Error(
-      "Only the creator can delete this task."
-    );
+  if (task.creator_id.toString() !== userId.toString()) {
+    throw new Error("Only the creator can delete this task.");
   }
 
   // Step 3: Delete task insights
   // await TaskInsight.deleteMany({
   //   taskId: task._id,
   // });
-
 
   // Step 4: Delete task
   await Task.findByIdAndDelete(taskId);
@@ -142,8 +119,6 @@ const deleteTask = async (taskId, userId) => {
     message: "Task deleted successfully.",
   };
 };
-
-
 
 const getTaskDetails = async (taskId) => {
   const task = await Task.findById(taskId)
@@ -177,11 +152,9 @@ const getTaskDetails = async (taskId) => {
 
     deliverableType: task.deliverable_type,
 
-    deliverableFileUrl:
-      task.deliverable_file_url,
+    deliverableFileUrl: task.deliverable_file_url,
 
-    markedAsDoneAt:
-      task.marked_as_done_at,
+    markedAsDoneAt: task.marked_as_done_at,
 
     createdAt: task.createdAt,
 
@@ -190,28 +163,20 @@ const getTaskDetails = async (taskId) => {
     creator: task.creator_id
       ? {
           id: task.creator_id._id,
-          firstName:
-            task.creator_id.firstName,
-          lastName:
-            task.creator_id.lastName,
-          email:
-            task.creator_id.email,
-          profilePicture:
-            task.creator_id.profilePicture,
+          firstName: task.creator_id.firstName,
+          lastName: task.creator_id.lastName,
+          email: task.creator_id.email,
+          profilePicture: task.creator_id.profilePicture,
         }
       : null,
 
     assignee: task.assignee_id
       ? {
           id: task.assignee_id._id,
-          firstName:
-            task.assignee_id.firstName,
-          lastName:
-            task.assignee_id.lastName,
-          email:
-            task.assignee_id.email,
-          profilePicture:
-            task.assignee_id.profilePicture,
+          firstName: task.assignee_id.firstName,
+          lastName: task.assignee_id.lastName,
+          email: task.assignee_id.email,
+          profilePicture: task.assignee_id.profilePicture,
         }
       : null,
 
@@ -224,12 +189,7 @@ const getTaskDetails = async (taskId) => {
   };
 };
 
-const uploadDeliverable = async (
-  taskId,
-  userId,
-  file
-) => {
-
+const uploadDeliverable = async (taskId, userId, file) => {
   const task = await Task.findById(taskId);
 
   if (!task) {
@@ -239,111 +199,68 @@ const uploadDeliverable = async (
   // Only assignee can upload
 
   if (!task.assignee_id) {
-    throw new Error(
-      "Task is not assigned."
-    );
+    throw new Error("Task is not assigned.");
   }
 
-  if (
-    task.assignee_id.toString() !==
-    userId.toString()
-  ) {
-    throw new Error(
-      "Only the assignee can upload deliverables."
-    );
+  if (task.assignee_id.toString() !== userId.toString()) {
+    throw new Error("Only the assignee can upload deliverables.");
   }
 
   if (!file) {
+    throw new Error("Deliverable file is required.");
+  }
+
+  const uploadedExtension = path.extname(file.originalname).toLowerCase();
+
+  const requiredExtension = task.deliverable_type.toLowerCase();
+
+  if (uploadedExtension !== requiredExtension) {
     throw new Error(
-      "Deliverable file is required."
+      `Wrong file type. This task requires a ${requiredExtension} file.`,
     );
   }
 
-  const uploadedExtension =
-    path.extname(file.originalname)
-      .toLowerCase();
-
-  const requiredExtension =
-    task.deliverable_type.toLowerCase();
-
-  if (
-    uploadedExtension !== requiredExtension
-  ) {
-    throw new Error(
-      `Wrong file type. This task requires a ${requiredExtension} file.`
-    );
-  }
-
-  task.deliverable_file_url =
-    file.path;
+  task.deliverable_file_url = file.path;
 
   await task.save();
 
   return task;
 };
 
-const updateTask = async (
-  taskId,
-  userId,
-  updateData
-) => {
-
+const updateTask = async (taskId, userId, updateData) => {
   const task = await Task.findById(taskId)
-    .populate(
-      "creator_id",
-      "first_name last_name"
-    )
-    .populate(
-      "assignee_id",
-      "first_name last_name"
-    );
+    .populate("creator_id", "first_name last_name")
+    .populate("assignee_id", "first_name last_name");
 
   if (!task) {
     throw new Error("Task not found.");
   }
 
-  const isCreator =
-    task.creator_id._id.toString() ===
-    userId.toString();
+  const isCreator = task.creator_id._id.toString() === userId.toString();
 
   const isAssignee =
-    task.assignee_id &&
-    task.assignee_id._id.toString() ===
-    userId.toString();
+    task.assignee_id && task.assignee_id._id.toString() === userId.toString();
 
   if (!isCreator && !isAssignee) {
-    throw new Error(
-      "Only the creator or assigned member can edit this task."
-    );
+    throw new Error("Only the creator or assigned member can edit this task.");
   }
 
-  const team = await Team.findById(
-    task.team_id
-  );
+  const team = await Team.findById(task.team_id);
 
   if (!team) {
     throw new Error("Team not found.");
   }
 
-  const coursework =
-    await Coursework.findById(
-      team.courseworkId
-    );
+  const coursework = await Coursework.findById(team.courseworkId);
 
   if (!coursework) {
-    throw new Error(
-      "Coursework not found."
-    );
+    throw new Error("Coursework not found.");
   }
 
-  const classObj = await Class.findById(
-    coursework.classId
-  );
+  const classObj = await Class.findById(coursework.classId);
 
   if (!classObj) {
-    throw new Error(
-      "Class not found."
-    );
+    throw new Error("Class not found.");
   }
 
   /*
@@ -352,11 +269,10 @@ const updateTask = async (
 
   if (
     updateData.deadline &&
-    new Date(updateData.deadline) >
-      new Date(coursework.deadline)
+    new Date(updateData.deadline) > new Date(coursework.deadline)
   ) {
     throw new Error(
-      `Task deadline cannot exceed the project deadline (${new Date(coursework.deadline).toLocaleDateString()}).`
+      `Task deadline cannot exceed the project deadline (${new Date(coursework.deadline).toLocaleDateString()}).`,
     );
   }
 
@@ -364,20 +280,13 @@ const updateTask = async (
     Update editable fields only
   */
 
-  task.name =
-    updateData.name ?? task.name;
+  task.name = updateData.name ?? task.name;
 
-  task.description =
-    updateData.description ??
-    task.description;
+  task.description = updateData.description ?? task.description;
 
-  task.deadline =
-    updateData.deadline ??
-    task.deadline;
+  task.deadline = updateData.deadline ?? task.deadline;
 
-  task.deliverable_type =
-    updateData.deliverable_type ??
-    task.deliverable_type;
+  task.deliverable_type = updateData.deliverable_type ?? task.deliverable_type;
 
   await task.save();
 
@@ -389,8 +298,7 @@ const updateTask = async (
     ? `${task.creator_id.first_name} ${task.creator_id.last_name}`
     : `${task.assignee_id.first_name} ${task.assignee_id.last_name}`;
 
-  const notificationMessage =
-`${classObj.course_code} | ${coursework.name}
+  const notificationMessage = `${classObj.course_code} | ${coursework.name}
 
 ${actorName} updated the task: ${task.name}`;
 
@@ -399,28 +307,19 @@ ${actorName} updated the task: ${task.name}`;
     Notify assignee
   */
 
-  if (
-    isCreator &&
-    task.assignee_id
-  ) {
-
+  if (isCreator && task.assignee_id) {
     await notificationService.createNotification({
-      userId:
-        task.assignee_id._id,
+      userId: task.assignee_id._id,
 
       type: "TASK_UPDATED",
 
-      message:
-        notificationMessage,
+      message: notificationMessage,
 
-      referenceId:
-        task._id,
+      referenceId: task._id,
 
-      courseCode:
-        classObj.course_code,
+      courseCode: classObj.course_code,
 
-      classColor:
-        classObj.class_color,
+      classColor: classObj.class_color,
     });
   }
 
@@ -429,50 +328,33 @@ ${actorName} updated the task: ${task.name}`;
     Notify creator
   */
 
-  if (
-    isAssignee &&
-    task.creator_id
-  ) {
-
+  if (isAssignee && task.creator_id) {
     await notificationService.createNotification({
-      userId:
-        task.creator_id._id,
+      userId: task.creator_id._id,
 
       type: "TASK_UPDATED",
 
-      message:
-        notificationMessage,
+      message: notificationMessage,
 
-      referenceId:
-        task._id,
+      referenceId: task._id,
 
-      courseCode:
-        classObj.course_code,
+      courseCode: classObj.course_code,
 
-      classColor:
-        classObj.class_color,
+      classColor: classObj.class_color,
     });
   }
 
   return task;
 };
 
-
-const getTeamTasks = async (
-  teamId,
-  page,
-  limit,
-  search
-) => {
-
+const getTeamTasks = async (teamId, page, limit, search) => {
   const team = await Team.findById(teamId);
 
   if (!team) {
     throw new Error("Team not found.");
   }
 
-  const skip =
-    (page - 1) * limit;
+  const skip = (page - 1) * limit;
 
   const query = {
     team_id: teamId,
@@ -486,29 +368,24 @@ const getTeamTasks = async (
   */
 
   if (search) {
-
-    const matchingUsers =
-      await User.find({
-        $or: [
-          {
-            first_name: {
-              $regex: search,
-              $options: "i",
-            },
+    const matchingUsers = await User.find({
+      $or: [
+        {
+          first_name: {
+            $regex: search,
+            $options: "i",
           },
-          {
-            last_name: {
-              $regex: search,
-              $options: "i",
-            },
+        },
+        {
+          last_name: {
+            $regex: search,
+            $options: "i",
           },
-        ],
-      }).select("_id");
+        },
+      ],
+    }).select("_id");
 
-    const assigneeIds =
-      matchingUsers.map(
-        (user) => user._id
-      );
+    const assigneeIds = matchingUsers.map((user) => user._id);
 
     query.$or = [
       {
@@ -525,14 +402,10 @@ const getTeamTasks = async (
     ];
   }
 
-  const total =
-    await Task.countDocuments(query);
+  const total = await Task.countDocuments(query);
 
   const tasks = await Task.find(query)
-    .populate(
-      "assignee_id",
-      "first_name last_name profile_picture"
-    )
+    .populate("assignee_id", "first_name last_name profile_picture")
     .sort({
       deadline: 1,
       createdAt: -1,
@@ -540,56 +413,220 @@ const getTeamTasks = async (
     .skip(skip)
     .limit(limit);
 
-  const formattedTasks =
-    tasks.map((task) => ({
+  const formattedTasks = tasks.map((task) => ({
+    id: task._id,
 
-      id: task._id,
+    task_name: task.name,
 
-      task_name: task.name,
+    assignee: task.assignee_id
+      ? {
+          id: task.assignee_id._id,
 
-      assignee: task.assignee_id
-        ? {
-            id: task.assignee_id._id,
+          name: `${task.assignee_id.first_name} ${task.assignee_id.last_name}`,
 
-            name:
-              `${task.assignee_id.first_name} ${task.assignee_id.last_name}`,
+          profile_picture: task.assignee_id.profile_picture,
+        }
+      : null,
 
-            profile_picture:
-              task.assignee_id.profile_picture,
-          }
-        : null,
+    status: task.status,
 
-      status: task.status,
+    deadline: task.deadline,
 
-      deadline: task.deadline,
+    deliverable_url: task.deliverable_file_url,
 
-      deliverable_url:
-        task.deliverable_file_url,
-
-      completed_at:
-        task.marked_as_done_at,
-    }));
+    completed_at: task.marked_as_done_at,
+  }));
 
   return {
-
     tasks: formattedTasks,
 
     pagination: {
       page,
       limit,
       total,
-      totalPages:
-        Math.ceil(total / limit),
+      totalPages: Math.ceil(total / limit),
     },
   };
 };
 
+/**
+ * Helper to fetch Coursework name, Class Code, and Class Color for notifications
+ */
+const getNotificationContext = async (teamId) => {
+  const team = await Team.findById(teamId).select("classId courseworkId");
+  if (!team) {
+    return {
+      courseCode: null,
+      classColor: null,
+      courseworkName: "Unknown Coursework",
+    };
+  }
+
+  const [classDoc, coursework] = await Promise.all([
+    Class.findById(team.classId).select("class_code class_color"),
+    Coursework.findById(team.courseworkId).select("name"),
+  ]);
+
+  return {
+    courseCode: classDoc?.class_code || null,
+    classColor: classDoc?.class_color || null,
+    courseworkName: coursework ? coursework.name : "Unknown Coursework",
+  };
+};
+
+/**
+ * Assign a task to a member
+ */
+const assignTask = async (taskId, requesterId, assigneeId) => {
+  const task = await Task.findById(taskId);
+  if (!task) throw { statusCode: 404, message: "Task not found." };
+
+  // Rule: Cannot assign if already assigned
+  if (task.assignee_id) {
+    throw {
+      statusCode: 400,
+      message: "Task is already assigned. Please unassign it first.",
+    };
+  }
+
+  // Verify requester is in the team
+  const requesterMembership = await TeamMember.findOne({
+    teamId: task.team_id,
+    studentId: requesterId,
+  });
+  if (!requesterMembership)
+    throw { statusCode: 403, message: "You are not a member of this team." };
+
+  // Verify assignee is in the team
+  const assigneeMembership = await TeamMember.findOne({
+    teamId: task.team_id,
+    studentId: assigneeId,
+  });
+  if (!assigneeMembership)
+    throw {
+      statusCode: 400,
+      message: "The selected assignee is not a member of this team.",
+    };
+
+  // Assign the task
+  task.assignee_id = assigneeId;
+  await task.save();
+
+  // Send notification if assigning someone else
+  if (requesterId.toString() !== assigneeId.toString()) {
+    const [requester, assignee, context] = await Promise.all([
+      User.findById(requesterId).select("first_name last_name"),
+      User.findById(assigneeId).select("first_name last_name"),
+      getNotificationContext(task.team_id),
+    ]);
+
+    const message = `${requester.first_name} ${requester.last_name} assigned you to the task '${task.name}' for '${context.courseworkName}' coursework.`;
+
+    // ✅ ADDED courseCode and classColor to the notification payload
+    await notificationService.createNotification({
+      userId: assigneeId,
+      type: "TASK_ASSIGNED",
+      message,
+      referenceId: task._id,
+      courseCode: context.courseCode,
+      classColor: context.classColor,
+    });
+  }
+
+  return task;
+};
+
+/**
+ * Unassign a task from its current assignee
+ */
+const unassignTask = async (taskId, requesterId) => {
+  const task = await Task.findById(taskId);
+  if (!task) throw { statusCode: 404, message: "Task not found." };
+
+  if (!task.assignee_id) {
+    throw {
+      statusCode: 400,
+      message: "Task is not currently assigned to anyone.",
+    };
+  }
+
+  // Verify requester is in the team
+  const requesterMembership = await TeamMember.findOne({
+    teamId: task.team_id,
+    studentId: requesterId,
+  });
+  if (!requesterMembership)
+    throw { statusCode: 403, message: "You are not a member of this team." };
+
+  // Permission check: Only creator or current assignee can unassign
+  const isCreator = task.creator_id.toString() === requesterId.toString();
+  const isAssignee = task.assignee_id.toString() === requesterId.toString();
+
+  if (!isCreator && !isAssignee) {
+    throw {
+      statusCode: 403,
+      message: "You do not have permission to unassign this task.",
+    };
+  }
+
+  // Store old data for notification before clearing
+  const oldAssigneeId = task.assignee_id;
+  const creatorId = task.creator_id;
+
+  // Unassign and reset task state
+  task.assignee_id = null;
+  task.status = "To Do";
+  task.deliverable_file_url = null;
+  task.marked_as_done_at = null;
+  await task.save();
+
+  // Notification logic
+  if (isCreator && isAssignee) {
+    // Same person, no notification needed
+    return task;
+  }
+
+  const [creator, oldAssignee, context] = await Promise.all([
+    User.findById(creatorId).select("first_name last_name"),
+    User.findById(oldAssigneeId).select("first_name last_name"),
+    getNotificationContext(task.team_id),
+  ]);
+
+  let message = "";
+  let notifyUserId = null;
+
+  if (isCreator) {
+    // Creator unassigned the assignee -> Notify Assignee
+    notifyUserId = oldAssigneeId;
+    message = `${creator.first_name} ${creator.last_name} unassigned you from the task '${task.name}' for '${context.courseworkName}' coursework.`;
+  } else if (isAssignee) {
+    // Assignee unassigned themselves -> Notify Creator
+    notifyUserId = creatorId;
+    message = `${oldAssignee.first_name} ${oldAssignee.last_name} unassigned themselves from the task '${task.name}' for '${context.courseworkName}' coursework.`;
+  }
+
+  if (notifyUserId && message) {
+    // ✅ ADDED courseCode and classColor to the notification payload
+    await notificationService.createNotification({
+      userId: notifyUserId,
+      type: "TASK_UNASSIGNED",
+      message,
+      referenceId: task._id,
+      courseCode: context.courseCode,
+      classColor: context.classColor,
+    });
+  }
+
+  return task;
+};
 
 module.exports = {
   createTask,
   getTaskDetails,
-   uploadDeliverable,
-   updateTask,
-   getTeamTasks,
-  deleteTask
+  uploadDeliverable,
+  updateTask,
+  getTeamTasks,
+  deleteTask,
+  assignTask,
+  unassignTask,
 };
