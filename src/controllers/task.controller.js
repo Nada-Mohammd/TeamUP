@@ -178,6 +178,41 @@ const unassignTask = async (req, res) => {
   }
 };
 
+/**
+ * Update task status (Assignee only)
+ */
+const updateTaskStatus = async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const { status } = req.body;
+    const requesterId = req.user.id;
+
+    if (!status) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Status is required." });
+    }
+
+    const updatedTask = await taskService.updateTaskStatus(
+      taskId,
+      requesterId,
+      status,
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Task status updated successfully.",
+      data: updatedTask,
+    });
+  } catch (error) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({
+      success: false,
+      message: error.message || "Failed to update task status.",
+    });
+  }
+};
+
 module.exports = {
   createTask,
   deleteTask,
@@ -187,4 +222,5 @@ module.exports = {
   getTeamTasks,
   assignTask,
   unassignTask,
+  updateTaskStatus,
 };

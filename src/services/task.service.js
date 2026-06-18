@@ -620,6 +620,58 @@ const unassignTask = async (taskId, requesterId) => {
   return task;
 };
 
+/**
+ * Update task status
+ * - Strictly restricted to the assigned member
+ * - Silent operation (no notifications)
+ * - Automatically manages the marked_as_done_at timestamp
+ */
+const updateTaskStatus = async (taskId, requesterId, newStatus) => {
+  const task = await Task.findById(taskId);
+  if (!task) {
+    throw { statusCode: 404, message: "Task not found." };
+  }
+
+  // Must be assigned to change status
+  if (!task.assignee_id) {
+    throw {
+      statusCode: 400,
+      message: "Cannot update status of an unassigned task.",
+    };
+  }
+
+  // Strict permission: Only the current assignee can change status
+  if (task.assignee_id.toString() !== requesterId.toString()) {
+    throw {
+      statusCode: 403,
+      message: "Only the assigned member can update this task's status.",
+    };
+  }
+
+  // Validate against Task model enum
+  const allowedStatuses = ["To Do", "In Progress", "Done"];
+  if (!allowedStatuses.includes(newStatus)) {
+    throw {
+      statusCode: 400,
+      message: `Invalid status. Allowed values: ${allowedStatuses.join(", ")}.`,
+    };
+  }
+
+  // Update status
+  task.status = newStatus;
+
+  // ✅ NEW: Manage the marked_as_done_at timestamp
+  if (newStatus === "Done") {
+    task.marked_as_done_at = new Date(); // Set to current time
+  } else {
+    task.marked_as_done_at = null; // Clear if reverted to To Do or In Progress
+  }
+
+  await task.save();
+
+  return task;
+};
+
 module.exports = {
   createTask,
   getTaskDetails,
@@ -629,4 +681,5 @@ module.exports = {
   deleteTask,
   assignTask,
   unassignTask,
+  updateTaskStatus,
 };

@@ -46,4 +46,6 @@ router.patch("/:taskId/assign", authenticate, taskController.assignTask);
 // Unassign task from a member
 router.patch("/:taskId/unassign", authenticate, taskController.unassignTask);
 
+router.patch("/:taskId/status", authenticate, taskController.updateTaskStatus);
+
 module.exports = router;
