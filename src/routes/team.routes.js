@@ -91,10 +91,9 @@ router.delete(
   teamController.kickStudentFromTeam,
 );
 
-router.get(
-  "/:teamId/members",
-  authenticate,
-  teamController.getTeamMembers
-);
+router.get("/:teamId/members", authenticate, teamController.getTeamMembers);
+
+// GET /api/teams/:teamId/insights
+router.get("/:teamId/insights", authenticate, teamController.getTeamInsights);
 
 module.exports = router;

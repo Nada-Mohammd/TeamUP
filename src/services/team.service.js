@@ -9,6 +9,7 @@ const Notification = require("../models/Notification");
 const { onlineUsers, io } = require("../sockets/socket");
 const StudentProfile = require("../models/StudentProfile");
 const notificationService = require("./notification.service");
+const Task = require("../models/Task");
 const mongoose = require("mongoose");
 
 const createTeam = async (userId, teamData) => {
@@ -428,7 +429,6 @@ const getStudentTeams = async (studentId, courseCode) => {
 };
 
 const getInstructorTeams = async (instructorId, courseCode) => {
-
   // Validate instructor exists
   const instructor = await User.findById(instructorId);
 
@@ -1160,7 +1160,6 @@ If you believe this action was made in error, please contact your instructor.`,
 };
 
 const getTeamMembers = async (teamId) => {
-
   const team = await Team.findById(teamId);
 
   if (!team) {
@@ -1169,15 +1168,9 @@ const getTeamMembers = async (teamId) => {
 
   const members = await TeamMember.find({
     teamId,
-  })
-    .populate(
-      "studentId",
-      "first_name last_name email"
-    );
+  }).populate("studentId", "first_name last_name email");
 
-  const userIds = members.map(
-    (member) => member.studentId._id
-  );
+  const userIds = members.map((member) => member.studentId._id);
 
   const profiles = await StudentProfile.find({
     user_id: { $in: userIds },
@@ -1186,49 +1179,34 @@ const getTeamMembers = async (teamId) => {
   const profileMap = {};
 
   profiles.forEach((profile) => {
-    profileMap[
-      profile.user_id.toString()
-    ] = profile;
+    profileMap[profile.user_id.toString()] = profile;
   });
 
-  const formattedMembers = members.map(
-    (member) => {
+  const formattedMembers = members.map((member) => {
+    const profile = profileMap[member.studentId._id.toString()];
 
-      const profile =
-        profileMap[
-          member.studentId._id.toString()
-        ];
+    return {
+      id: member._id,
 
-      return {
+      role: member.role,
 
-        id: member._id,
+      joined_at: member.joinedAt,
 
-        role: member.role,
+      student: {
+        id: member.studentId._id,
 
-        joined_at: member.joinedAt,
+        first_name: member.studentId.first_name,
 
-        student: {
-          id: member.studentId._id,
+        last_name: member.studentId.last_name,
 
-          first_name:
-            member.studentId.first_name,
+        email: member.studentId.email,
 
-          last_name:
-            member.studentId.last_name,
-
-          email:
-            member.studentId.email,
-
-          profile_picture:
-            profile?.profile_picture
-              ?.storagePath || null,
-        },
-      };
-    }
-  );
+        profile_picture: profile?.profile_picture?.storagePath || null,
+      },
+    };
+  });
 
   formattedMembers.sort((a, b) => {
-
     if (a.role === "LEADER") {
       return -1;
     }
@@ -1237,13 +1215,173 @@ const getTeamMembers = async (teamId) => {
       return 1;
     }
 
-    return (
-      new Date(a.joined_at) -
-      new Date(b.joined_at)
-    );
+    return new Date(a.joined_at) - new Date(b.joined_at);
   });
 
   return formattedMembers;
+};
+
+const getTeamInsights = async (teamId, requesterId) => {
+  // 1. Fetch team and populate coursework deadline
+  const team = await Team.findById(teamId).populate("courseworkId", "deadline");
+
+  if (!team) {
+    throw { statusCode: 404, message: "Team not found." };
+  }
+
+  // 2. Authorization Check: Must be a team member OR the assigned instructor
+  const isMember = await TeamMember.findOne({ teamId, studentId: requesterId });
+  const isInstructor =
+    team.instructorId &&
+    team.instructorId.toString() === requesterId.toString();
+
+  if (!isMember && !isInstructor) {
+    throw {
+      statusCode: 403,
+      message: "You are not authorized to view this team's insights.",
+    };
+  }
+
+  const courseworkDeadline = team.courseworkId?.deadline || null;
+
+  // 3. Fetch all tasks for the team and populate assignee details
+  const tasks = await Task.find({ team_id: teamId }).populate(
+    "assignee_id",
+    "first_name last_name",
+  );
+
+  // 4. Fetch all team members and their profile pictures
+  const teamMembers = await TeamMember.find({ teamId }).populate(
+    "studentId",
+    "first_name last_name",
+  );
+  const memberUserIds = teamMembers.map((m) => m.studentId._id.toString());
+
+  const profiles = await StudentProfile.find({
+    user_id: { $in: memberUserIds },
+  }).select("user_id profile_picture");
+
+  const profileMap = new Map(
+    profiles.map((p) => [
+      p.user_id.toString(),
+      p.profile_picture?.storagePath || null,
+    ]),
+  );
+
+  // ==========================================
+  // 5. Build Work Distribution Data
+  // ==========================================
+  const tasksByAssignee = new Map();
+  let unassignedCount = 0;
+
+  tasks.forEach((task) => {
+    if (!task.assignee_id) {
+      unassignedCount++;
+    } else {
+      const assigneeId = task.assignee_id._id.toString();
+      if (!tasksByAssignee.has(assigneeId)) {
+        tasksByAssignee.set(assigneeId, {
+          total: 0,
+          done: 0,
+          inProgress: 0,
+          toDo: 0,
+        });
+      }
+
+      const counts = tasksByAssignee.get(assigneeId);
+      counts.total++;
+
+      if (task.status === "Done") counts.done++;
+      else if (task.status === "In Progress") counts.inProgress++;
+      else if (task.status === "To Do") counts.toDo++;
+    }
+  });
+
+  const workDistributionMembers = teamMembers.map((member) => {
+    const userId = member.studentId._id.toString();
+    const counts = tasksByAssignee.get(userId) || {
+      total: 0,
+      done: 0,
+      inProgress: 0,
+      toDo: 0,
+    };
+
+    return {
+      userId,
+      name: `${member.studentId.first_name} ${member.studentId.last_name}`,
+      profilePicture: profileMap.get(userId) || null,
+      taskCounts: counts,
+    };
+  });
+
+  const workDistribution = {
+    totalTasks: tasks.length,
+    unassignedCount,
+    members: workDistributionMembers,
+  };
+
+  // ==========================================
+  // 6. Build Activity Timeline Data
+  // ==========================================
+  const activityTimelineMembers = teamMembers.map((member) => {
+    const userId = member.studentId._id.toString();
+
+    // Filter only completed tasks for this specific member
+    const completedTasks = tasks.filter(
+      (task) =>
+        task.assignee_id &&
+        task.assignee_id._id.toString() === userId &&
+        task.status === "Done" &&
+        task.marked_as_done_at,
+    );
+
+    const timelinePoints = completedTasks.map((task) => {
+      const completedAt = new Date(task.marked_as_done_at);
+      const taskDeadline = new Date(task.deadline);
+
+      // Calculate days before/after the task deadline
+      const diffTimeTask = taskDeadline - completedAt;
+      const daysBeforeTaskDeadline = Math.ceil(
+        diffTimeTask / (1000 * 60 * 60 * 24),
+      );
+
+      // Calculate days before/after the overall coursework deadline
+      let daysBeforeCourseworkDeadline = null;
+      if (courseworkDeadline) {
+        const diffTimeCoursework = new Date(courseworkDeadline) - completedAt;
+        daysBeforeCourseworkDeadline = Math.ceil(
+          diffTimeCoursework / (1000 * 60 * 60 * 24),
+        );
+      }
+
+      return {
+        taskId: task._id,
+        taskName: task.name,
+        completedAt: task.marked_as_done_at,
+        taskDeadline: task.deadline,
+        daysBeforeTaskDeadline,
+        daysBeforeCourseworkDeadline,
+      };
+    });
+
+    return {
+      userId,
+      name: `${member.studentId.first_name} ${member.studentId.last_name}`,
+      profilePicture: profileMap.get(userId) || null,
+      timelinePoints, // Empty array if the member has 0 completed tasks
+    };
+  });
+
+  const activityTimeline = {
+    courseworkDeadline,
+    members: activityTimelineMembers,
+  };
+
+  // 7. Return combined response
+  return {
+    workDistribution,
+    activityTimeline,
+  };
 };
 
 module.exports = {
@@ -1259,5 +1397,6 @@ module.exports = {
   sendTeamInvitation,
   respondToTeamInvitation,
   kickStudentFromTeam,
-  getTeamMembers
+  getTeamMembers,
+  getTeamInsights,
 };

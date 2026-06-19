@@ -304,28 +304,41 @@ const kickStudentFromTeam = async (req, res) => {
 
 const getTeamMembers = async (req, res) => {
   try {
-
     const { teamId } = req.params;
 
-    const members =
-      await teamService.getTeamMembers(
-        teamId
-      );
+    const members = await teamService.getTeamMembers(teamId);
 
     return res.status(200).json({
       success: true,
-      message:
-        "Team members retrieved successfully.",
+      message: "Team members retrieved successfully.",
       data: members,
     });
-
   } catch (error) {
-
     return res.status(400).json({
       success: false,
       message: error.message,
     });
+  }
+};
 
+const getTeamInsights = async (req, res) => {
+  try {
+    const { teamId } = req.params;
+    const requesterId = req.user.id;
+
+    const insights = await teamService.getTeamInsights(teamId, requesterId);
+
+    return res.status(200).json({
+      success: true,
+      message: "Team insights retrieved successfully.",
+      data: insights,
+    });
+  } catch (error) {
+    const status = error.statusCode || 500;
+    return res.status(status).json({
+      success: false,
+      message: error.message || "Failed to retrieve team insights.",
+    });
   }
 };
 
@@ -342,5 +355,6 @@ module.exports = {
   getStudentTeams,
   getInstructorTeams,
   kickStudentFromTeam,
-  getTeamMembers
+  getTeamMembers,
+  getTeamInsights,
 };
