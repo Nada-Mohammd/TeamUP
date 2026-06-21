@@ -229,7 +229,6 @@ async function suggestTeamMembersForNewTeam(req, res) {
         name: `${profile.first_name} ${profile.last_name}`,
         username: profile.username,
         email: profile.email,
-        profilePicture: profile.profile_picture,
         skills: profile.skills,
         availability: profile.availability,
         gpa: profile.gpa,
@@ -488,7 +487,6 @@ async function suggestTeamMembersForExistingTeam(req, res) {
           name: `${profile.first_name} ${profile.last_name}`,
           username: profile.username,
           email: profile.email,
-          profilePicture: profile.profile_picture,
           skills: profile.skills,
           availability: profile.availability,
           gpa: profile.gpa,
@@ -531,7 +529,8 @@ async function suggestTeamMembersForExistingTeam(req, res) {
 // ─── Action 3 ────────────────────────────────────────────────────────────────
 async function suggestTeamsForStudent(req, res) {
   try {
-    const { studentId, courseworkId } = req.body || {};
+    const studentId = req.user.id;
+    const { courseworkId } = req.body || {};
 
     if (!studentId || !courseworkId) {
       return res.status(400).json({
@@ -695,9 +694,11 @@ async function suggestTeamsForStudent(req, res) {
           classId: team.classId,
           courseworkId: team.courseworkId,
           leaderId: team.leaderId,
-          size: team.size,
           memberCount,
-          openSlots: Math.max(Number(team.size || 0) - memberCount, 0),
+          openSlots: Math.max(
+            Number(coursework.team_size_max || 0) - memberCount,
+            0,
+          ),
           combinedSkills: teamResult.teamAggregateProfile.skills,
           combinedAvailability: teamResult.teamAggregateProfile.availability,
           teamMissingSkills: teamResult.teamMissingSkills,
