@@ -478,37 +478,48 @@ const getTeamTasks = async (teamId, page, limit, search) => {
   const total = await Task.countDocuments(query);
 
   const tasks = await Task.find(query)
-    .populate("assignee_id", "first_name last_name profile_picture")
-    .sort({
-      deadline: 1,
-      createdAt: -1,
-    })
-    .skip(skip)
-    .limit(limit);
+  .populate({
+    path: "assignee_id",
+    select: "first_name last_name profile_id",
+    populate: {
+      path: "profile_id",
+      select: "profile_picture",
+    },
+  })
+  .sort({
+    deadline: 1,
+    createdAt: -1,
+  })
+  .skip(skip)
+  .limit(limit);
 
   const formattedTasks = tasks.map((task) => ({
-    id: task._id,
+  id: task._id,
 
-    task_name: task.name,
+  task_name: task.name,
 
-    assignee: task.assignee_id
-      ? {
-          id: task.assignee_id._id,
+  assignee: task.assignee_id
+    ? {
+        id: task.assignee_id._id,
 
-          name: `${task.assignee_id.first_name} ${task.assignee_id.last_name}`,
+        name: `${task.assignee_id.first_name} ${task.assignee_id.last_name}`,
 
-          profile_picture: task.assignee_id.profile_picture,
-        }
-      : null,
+        profile_picture:
+          task.assignee_id.profile_id?.profile_picture
+            ?.storagePath || null,
+      }
+    : null,
 
-    status: task.status,
+  status: task.status,
 
-    deadline: task.deadline,
+  deadline: task.deadline,
 
-    deliverable_url: task.deliverable_file_url,
+  deliverable_url: task.deliverable_file_url,
 
-    completed_at: task.marked_as_done_at,
-  }));
+  completed_at: task.marked_as_done_at,
+
+  created_at: task.createdAt,
+}));
 
   return {
     tasks: formattedTasks,
