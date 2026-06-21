@@ -5,6 +5,7 @@ const Coursework = require("../models/Coursework");
 const User = require("../models/User");
 const path = require("path");
 const notificationService = require("./notification.service");
+const StudentProfile = require("../models/StudentProfile");
 const Class = require("../models/Class");
 const createTask = async (userId, teamId, taskData) => {
   // Step 1: Find team
@@ -120,63 +121,135 @@ const deleteTask = async (taskId, userId) => {
   };
 };
 
+// const getTaskDetails = async (taskId) => {
+//   const task = await Task.findById(taskId)
+//     .populate({
+//       path: "creator_id",
+//       select: "first_name last_name email profile_picture",
+//     })
+//     .populate({
+//       path: "assignee_id",
+//       select: "first_name last_name email profile_picture",
+//     })
+//     .populate({
+//       path: "team_id",
+//       select: "name",
+//     });
+
+//   if (!task) {
+//     throw new Error("Task not found.");
+//   }
+
+//   return {
+//     id: task._id,
+
+//     name: task.name,
+
+//     description: task.description,
+
+//     status: task.status,
+
+//     deadline: task.deadline,
+
+//     deliverableType: task.deliverable_type,
+
+//     deliverableFileUrl: task.deliverable_file_url,
+
+//     markedAsDoneAt: task.marked_as_done_at,
+
+//     createdAt: task.createdAt,
+
+//     updatedAt: task.updatedAt,
+
+//     creator: task.creator_id
+//       ? {
+//           id: task.creator_id._id,
+//           first_name: task.creator_id.first_name,
+//           last_name: task.creator_id.last_name,
+//           email: task.creator_id.email,
+//           profile_picture: task.creator_id.profile_picture,
+//         }
+//       : null,
+
+//     assignee: task.assignee_id
+//       ? {
+//           id: task.assignee_id._id,
+//           first_name: task.assignee_id.first_name,
+//           last_ame: task.assignee_id.last_name,
+//           email: task.assignee_id.email,
+//           profile_picture: task.assignee_id.profile_picture,
+//         }
+//       : null,
+
+//     team: task.team_id
+//       ? {
+//           id: task.team_id._id,
+//           name: task.team_id.name,
+//         }
+//       : null,
+//   };
+// };
+
 const getTaskDetails = async (taskId) => {
   const task = await Task.findById(taskId)
-    .populate({
-      path: "creator_id",
-      select: "firstName lastName email profilePicture",
-    })
-    .populate({
-      path: "assignee_id",
-      select: "firstName lastName email profilePicture",
-    })
-    .populate({
-      path: "team_id",
-      select: "name",
-    });
+    .populate({ path: "creator_id", select: "first_name last_name email" })
+    .populate({ path: "assignee_id", select: "first_name last_name email" })
+    .populate({ path: "team_id", select: "name" });
 
   if (!task) {
     throw new Error("Task not found.");
   }
 
+  // Fetch StudentProfiles for the creator and assignee to get their profile pictures
+  const userIdsToFetch = [];
+  if (task.creator_id) userIdsToFetch.push(task.creator_id._id);
+  if (task.assignee_id) userIdsToFetch.push(task.assignee_id._id);
+
+  const profiles =
+    userIdsToFetch.length > 0
+      ? await StudentProfile.find({ user_id: { $in: userIdsToFetch } })
+          .select("user_id profile_picture")
+          .lean()
+      : [];
+
+  const profileMap = new Map(
+    profiles.map((p) => [
+      p.user_id.toString(),
+      p.profile_picture?.storagePath || null,
+    ]),
+  );
+
   return {
     id: task._id,
-
     name: task.name,
-
     description: task.description,
-
     status: task.status,
-
     deadline: task.deadline,
-
     deliverableType: task.deliverable_type,
-
     deliverableFileUrl: task.deliverable_file_url,
-
     markedAsDoneAt: task.marked_as_done_at,
-
     createdAt: task.createdAt,
-
     updatedAt: task.updatedAt,
 
     creator: task.creator_id
       ? {
           id: task.creator_id._id,
-          firstName: task.creator_id.firstName,
-          lastName: task.creator_id.lastName,
+          firstName: task.creator_id.first_name,
+          lastName: task.creator_id.last_name,
           email: task.creator_id.email,
-          profilePicture: task.creator_id.profilePicture,
+          profilePicture:
+            profileMap.get(task.creator_id._id.toString()) || null,
         }
       : null,
 
     assignee: task.assignee_id
       ? {
           id: task.assignee_id._id,
-          firstName: task.assignee_id.firstName,
-          lastName: task.assignee_id.lastName,
+          firstName: task.assignee_id.first_name,
+          lastName: task.assignee_id.last_name,
           email: task.assignee_id.email,
-          profilePicture: task.assignee_id.profilePicture,
+          profilePicture:
+            profileMap.get(task.assignee_id._id.toString()) || null,
         }
       : null,
 
