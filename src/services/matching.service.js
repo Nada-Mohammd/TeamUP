@@ -104,11 +104,11 @@ function calculateCandidateScore(
   const gpaScore    = getGpaScore(candidateProfile?.gpa);
 
   const finalScore =
-    skillScore           * 0.45 +
-    courseworkSkillScore * 0.15 +
-    availabilityScore    * 0.20 +
+    skillScore           * 0.40 +
+    courseworkSkillScore * 0.30 +
+    availabilityScore    * 0.10 +
     ratingScore          * 0.10 +
-    gpaScore             * 0.10;
+    gpaScore             * 0.10; 
 
   return {
     score: Number((finalScore * 100).toFixed(2)),
