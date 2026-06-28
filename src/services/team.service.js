@@ -1432,6 +1432,22 @@ const submitCoursework = async (
     );
   }
 
+
+  // delete old file if team is replacing submission
+  if (team.courseworkSubmission?.file_url) {
+  try {
+    await deleteFromCloudinary(
+      team.courseworkSubmission.file_url,
+      "raw"
+    );
+  } catch (error) {
+    console.error(
+      "Failed to delete old coursework submission:",
+      error
+    );
+  }
+}
+
   team.courseworkSubmission = {
     file_name: file.originalname,
     file_url: file.path,

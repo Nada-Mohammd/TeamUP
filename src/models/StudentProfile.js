@@ -34,12 +34,6 @@ const ratingSchema = new Schema(
       required: [true, "Rater name is required."],
       trim: true,
     },
-    raterUsername: {
-      type: String,
-      required: [true, "Rater username is required."],
-      trim: true,
-      lowercase: true,
-    },
     stars: {
       type: Number,
       required: [true, "Star rating is required."],
