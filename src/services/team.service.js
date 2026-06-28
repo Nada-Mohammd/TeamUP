@@ -1384,6 +1384,72 @@ const getTeamInsights = async (teamId, requesterId) => {
   };
 };
 
+const submitCoursework = async (
+  teamId,
+  userId,
+  file
+) => {
+  if (!file) {
+    throw new Error(
+      "Submission file is required."
+    );
+  }
+
+  const team = await Team.findById(teamId);
+
+  if (!team) {
+    throw new Error("Team not found.");
+  }
+
+  const member = await TeamMember.findOne({
+    teamId,
+    studentId: userId,
+  });
+
+  if (!member) {
+    throw new Error(
+      "You are not a member of this team."
+    );
+  }
+
+  const coursework =
+    await Coursework.findById(
+      team.courseworkId
+    );
+
+  if (!coursework) {
+    throw new Error(
+      "Coursework not found."
+    );
+  }
+
+  if (
+    new Date() >
+    new Date(coursework.deadline)
+  ) {
+    throw new Error(
+      "Coursework deadline has passed."
+    );
+  }
+
+  team.courseworkSubmission = {
+    file_name: file.originalname,
+    file_url: file.path,
+    file_size: file.size,
+    submitted_at: new Date(),
+    submitted_by: userId,
+  };
+
+  await team.save();
+
+  return {
+    message:
+      "Coursework submitted successfully.",
+    submission:
+      team.courseworkSubmission,
+  };
+};
+
 module.exports = {
   createTeam,
   lockTeam,
@@ -1399,4 +1465,5 @@ module.exports = {
   kickStudentFromTeam,
   getTeamMembers,
   getTeamInsights,
+  submitCoursework,
 };

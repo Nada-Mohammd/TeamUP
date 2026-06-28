@@ -58,6 +58,34 @@ const teamSchema = new Schema(
       max: [50, "Team size cannot exceed 50."],
     },
 
+    courseworkSubmission: {
+  file_name: {
+    type: String,
+    default: null,
+  },
+
+  file_url: {
+    type: String,
+    default: null,
+  },
+
+  file_size: {
+    type: Number,
+    default: null,
+  },
+
+  submitted_at: {
+    type: Date,
+    default: null,
+  },
+
+  submitted_by: {
+    type: Schema.Types.ObjectId,
+    ref: "User",
+    default: null,
+  },
+},
+
     // Lock status: prevents new join requests/invitations
     isLocked: {
       type: Boolean,

@@ -3,6 +3,7 @@ const router = express.Router();
 
 const teamController = require("../controllers/team.controller");
 const { authenticate, authorize } = require("../middlewares/auth");
+const {upload} = require("../middlewares/upload");
 
 // POST /api/teams/create
 router.post(
@@ -95,5 +96,13 @@ router.get("/:teamId/members", authenticate, teamController.getTeamMembers);
 
 // GET /api/teams/:teamId/insights
 router.get("/:teamId/insights", authenticate, teamController.getTeamInsights);
+
+router.patch(
+  "/:teamId/submit-coursework",
+  authenticate,
+  authorize("Student"),
+  upload.single("file"),
+  teamController.submitCoursework
+);
 
 module.exports = router;
