@@ -105,4 +105,10 @@ router.patch(
   teamController.submitCoursework
 );
 
+router.get(
+  "/:teamId/submission",
+  authenticate,
+  teamController.getTeamSubmission
+);
+
 module.exports = router;

@@ -371,6 +371,34 @@ const submitCoursework = async (
   }
 };
 
+const getTeamSubmission = async (req, res) => {
+  try {
+    const { teamId } = req.params;
+
+    const userId = req.user.id;
+    const userRole = req.user.role;
+
+    const submission =
+      await teamService.getTeamSubmission(
+        teamId,
+        userId,
+        userRole
+      );
+
+    return res.status(200).json({
+      success: true,
+      data: submission,
+    });
+  } catch (err) {
+    return res.status(
+      err.statusCode || 500
+    ).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
+
 module.exports = {
   createTeam,
   lockTeam,
@@ -387,4 +415,5 @@ module.exports = {
   getTeamMembers,
   getTeamInsights,
   submitCoursework,
+  getTeamSubmission,
 };

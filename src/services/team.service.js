@@ -1450,6 +1450,76 @@ const submitCoursework = async (
   };
 };
 
+const getTeamSubmission = async (
+  teamId,
+  userId,
+  userRole,
+) => {
+  const team = await Team.findById(teamId);
+
+  if (!team) {
+    throw {
+      statusCode: 404,
+      message: "Team not found.",
+    };
+  }
+
+  // Students can only view submissions of their own teams
+  if (userRole === "Student") {
+    const member = await TeamMember.findOne({
+      teamId,
+      studentId: userId,
+    });
+
+    if (!member) {
+      throw {
+        statusCode: 403,
+        message: "You are not a member of this team.",
+      };
+    }
+  }
+
+  const submission = team.courseworkSubmission;
+
+  if (
+    !submission ||
+    !submission.file_url
+  ) {
+    throw {
+      statusCode: 404,
+      message:
+        "This team has not submitted the coursework yet.",
+    };
+  }
+
+  let submittedBy = null;
+
+  if (submission.submitted_by) {
+    const user = await User.findById(
+      submission.submitted_by
+    ).select(
+      "first_name last_name email"
+    );
+
+    if (user) {
+      submittedBy = {
+        id: user._id,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        email: user.email,
+      };
+    }
+  }
+
+  return {
+    file_name: submission.file_name,
+    file_url: submission.file_url,
+    file_size: submission.file_size,
+    submitted_at: submission.submitted_at,
+    submitted_by: submittedBy,
+  };
+};
+
 module.exports = {
   createTeam,
   lockTeam,
@@ -1466,4 +1536,5 @@ module.exports = {
   getTeamMembers,
   getTeamInsights,
   submitCoursework,
+  getTeamSubmission,
 };
