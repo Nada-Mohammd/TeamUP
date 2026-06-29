@@ -29,28 +29,32 @@ const linkSchema = new Schema(
 
 const ratingSchema = new Schema(
   {
-    raterName: {
-      type: String,
-      required: [true, "Rater name is required."],
-      trim: true,
+    raterId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
     },
+
     stars: {
       type: Number,
-      required: [true, "Star rating is required."],
-      min: [1, "Rating must be at least 1."],
-      max: [5, "Rating cannot exceed 5."],
+      required: true,
+      min: 1,
+      max: 5,
     },
+
     comment: {
       type: String,
-      trim: true,
       default: null,
-      maxlength: [500, "Comment cannot exceed 500 characters."],
+      maxlength: 500,
+      trim: true,
     },
   },
   {
-    _id: false,
-    timestamps: { createdAt: true, updatedAt: false }, // track when rating was given
-  },
+    timestamps: {
+      createdAt: true,
+      updatedAt: false,
+    },
+  }
 );
 
 // --- Main Schema ---

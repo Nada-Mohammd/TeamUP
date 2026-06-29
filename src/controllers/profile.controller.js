@@ -48,4 +48,27 @@ const editProfile = async (req, res) => {
   }
 };
 
-module.exports = { getProfile, editProfile};
+const getStudentRatings = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const ratings =
+      await profileService.getStudentRatings(
+        userId
+      );
+
+    return res.status(200).json({
+      success: true,
+      data: ratings,
+    });
+  } catch (error) {
+    return res.status(
+      error.statusCode || 500
+    ).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+module.exports = { getProfile, editProfile, getStudentRatings};

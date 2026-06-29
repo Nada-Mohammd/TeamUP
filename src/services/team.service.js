@@ -1536,6 +1536,161 @@ const getTeamSubmission = async (
   };
 };
 
+const rateTeamMembers = async (
+  teamId,
+  raterId,
+  ratings
+) => {
+  const team = await Team.findById(teamId);
+
+  if (!team) {
+    throw {
+      statusCode: 404,
+      message: "Team not found.",
+    };
+  }
+
+  const coursework = await Coursework.findById(
+    team.courseworkId
+  );
+
+  if (!coursework) {
+    throw {
+      statusCode: 404,
+      message: "Coursework not found.",
+    };
+  }
+
+  // if (
+  //   new Date() <
+  //   new Date(coursework.deadline)
+  // ) {
+  //   throw {
+  //     statusCode: 400,
+  //     message:
+  //       "Ratings are allowed only after the coursework deadline.",
+  //   };
+  // }
+
+  const members = await TeamMember.find({
+    teamId,
+  });
+
+  const memberIds = members.map((m) =>
+    m.studentId.toString()
+  );
+
+  if (
+    !memberIds.includes(
+      raterId.toString()
+    )
+  ) {
+    throw {
+      statusCode: 403,
+      message:
+        "You are not a member of this team.",
+    };
+  }
+
+  if (
+    !ratings ||
+    !Array.isArray(ratings) ||
+    ratings.length === 0
+  ) {
+    throw {
+      statusCode: 400,
+      message:
+        "Ratings array is required.",
+    };
+  }
+
+  for (const item of ratings) {
+    const {
+      ratedUserId,
+      stars,
+      comment,
+    } = item;
+
+    if (!ratedUserId) {
+      throw {
+        statusCode: 400,
+        message:
+          "ratedUserId is required.",
+      };
+    }
+
+    if (stars < 1 || stars > 5) {
+      throw {
+        statusCode: 400,
+        message:
+          "Stars must be between 1 and 5.",
+      };
+    }
+
+    if (
+      ratedUserId.toString() ===
+      raterId.toString()
+    ) {
+      throw {
+        statusCode: 400,
+        message:
+          "You cannot rate yourself.",
+      };
+    }
+
+    if (
+      !memberIds.includes(
+        ratedUserId.toString()
+      )
+    ) {
+      throw {
+        statusCode: 400,
+        message:
+          `User ${ratedUserId} is not a member of this team.`,
+      };
+    }
+
+    const profile =
+      await StudentProfile.findOne({
+        user_id: ratedUserId,
+      });
+
+    if (!profile) {
+      throw {
+        statusCode: 404,
+        message:
+          `Profile for user ${ratedUserId} not found.`,
+      };
+    }
+
+    const existingRating =
+      profile.ratings.find(
+        (r) =>
+          r.raterId.toString() ===
+          raterId.toString()
+      );
+
+    if (existingRating) {
+      existingRating.stars = stars;
+      existingRating.comment =
+        comment || null;
+    } else {
+      profile.ratings.push({
+        raterId,
+        stars,
+        comment: comment || null,
+      });
+    }
+
+    await profile.save();
+  }
+
+  return {
+    message:
+      "Ratings submitted successfully.",
+  };
+};
+
 module.exports = {
   createTeam,
   lockTeam,
@@ -1553,4 +1708,5 @@ module.exports = {
   getTeamInsights,
   submitCoursework,
   getTeamSubmission,
+  rateTeamMembers
 };

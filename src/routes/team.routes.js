@@ -111,4 +111,11 @@ router.get(
   teamController.getTeamSubmission
 );
 
+router.patch(
+  "/teams/:teamId/ratings",
+  authenticate,
+  authorize("Student"),
+  teamController.rateTeamMembers
+);
+
 module.exports = router;

@@ -5,6 +5,8 @@ const {
   getProfile, editProfile,
   updateProfileSkills,
 } = require("../controllers/profile.controller");
+
+const profileController = require("../controllers/profile.controller");
 const { authenticate } = require("../middlewares/auth");
 const authorizeProfileAccess = require("../middlewares/profile");
 const { uploadProfileFiles } = require("../middlewares/upload");
@@ -14,5 +16,11 @@ router.get("/:userId", authenticate, authorizeProfileAccess, getProfile);
 
 // PATCH /api/profile/:userId/edit
 router.patch("/:userId/edit", authenticate, authorizeProfileAccess, uploadProfileFiles, editProfile);
+
+router.get(
+  "/:userId/ratings",
+  authenticate,
+  profileController.getStudentRatings
+);
 
 module.exports = router;

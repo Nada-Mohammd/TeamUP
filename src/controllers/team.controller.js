@@ -399,6 +399,38 @@ const getTeamSubmission = async (req, res) => {
   }
 };
 
+const rateTeamMembers = async (
+  req,
+  res
+) => {
+  try {
+    const { teamId } =
+      req.params;
+
+    const { ratings } =
+      req.body;
+
+    const result =
+      await teamService.rateTeamMembers(
+        teamId,
+        req.user.id,
+        ratings
+      );
+
+    return res.status(200).json({
+      success: true,
+      message: result.message,
+    });
+  } catch (error) {
+    return res.status(
+      error.statusCode || 400
+    ).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
 module.exports = {
   createTeam,
   lockTeam,
@@ -416,4 +448,5 @@ module.exports = {
   getTeamInsights,
   submitCoursework,
   getTeamSubmission,
+  rateTeamMembers,
 };

@@ -127,4 +127,78 @@ async function editProfile(userId, body, files) {
   return updated;
 }
 
-module.exports = { getProfileByUserId, editProfile };
+const getStudentRatings = async (userId) => {
+  const profile = await StudentProfile.findOne({
+    user_id: userId,
+  }).populate({
+    path: "ratings.raterId",
+    select: "first_name last_name",
+  });
+
+  if (!profile) {
+    throw {
+      statusCode: 404,
+      message: "Profile not found.",
+    };
+  }
+
+  // No ratings yet
+  if (!profile.ratings || profile.ratings.length === 0) {
+    return {
+      totalRatings: 0,
+      ratings: [],
+    };
+  }
+
+  const raterIds = profile.ratings
+    .filter((r) => r.raterId)
+    .map((r) => r.raterId._id.toString());
+
+  const raterProfiles = await StudentProfile.find({
+    user_id: { $in: raterIds },
+  })
+    .select("user_id profile_picture")
+    .lean();
+
+  const pictureMap = new Map(
+    raterProfiles.map((p) => [
+      p.user_id.toString(),
+      p.profile_picture?.storagePath || null,
+    ])
+  );
+
+  const ratings = profile.ratings
+    .sort(
+      (a, b) =>
+        new Date(b.createdAt) -
+        new Date(a.createdAt)
+    )
+    .map((rating) => ({
+      id: rating._id,
+
+      rater: rating.raterId
+        ? {
+            id: rating.raterId._id,
+            firstName:
+              rating.raterId.first_name,
+            lastName:
+              rating.raterId.last_name,
+            profilePicture:
+              pictureMap.get(
+                rating.raterId._id.toString()
+              ) || null,
+          }
+        : null,
+
+      stars: rating.stars,
+      comment: rating.comment,
+      createdAt: rating.createdAt,
+    }));
+
+  return {
+    totalRatings: ratings.length,
+    ratings,
+  };
+};
+
+module.exports = { getProfileByUserId, editProfile, getStudentRatings };
