@@ -1561,16 +1561,16 @@ const rateTeamMembers = async (
     };
   }
 
-  // if (
-  //   new Date() <
-  //   new Date(coursework.deadline)
-  // ) {
-  //   throw {
-  //     statusCode: 400,
-  //     message:
-  //       "Ratings are allowed only after the coursework deadline.",
-  //   };
-  // }
+  if (
+    new Date() <
+    new Date(coursework.deadline)
+  ) {
+    throw {
+      statusCode: 400,
+      message:
+        "Ratings are allowed only after the coursework deadline.",
+    };
+  }
 
   const members = await TeamMember.find({
     teamId,
