@@ -145,7 +145,7 @@ const parseLockedQuery = (locked) => {
   throw new Error('Invalid locked query value. Use "true" or "false".');
 };
 
-const getCourseworkTeams = async (classId, courseworkId, lockedQuery) => {
+const getCourseworkTeams = async (classId, courseworkId, lockedQuery, userId) => {
   const isLocked = parseLockedQuery(lockedQuery);
 
   const classDoc = await Class.findById(classId).select("course_name");
@@ -176,6 +176,16 @@ const getCourseworkTeams = async (classId, courseworkId, lockedQuery) => {
   }
 
   const teamIds = teams.map((team) => team._id);
+  let joinedTeamId = null;
+
+if (userId) {
+  const myMembership = await TeamMember.findOne({
+    teamId: { $in: teamIds },
+    studentId: userId,
+  }).select("teamId");
+
+  joinedTeamId = myMembership?.teamId?.toString() || null;
+}
 
   const members = await TeamMember.find({ teamId: { $in: teamIds } })
     .populate({
@@ -217,6 +227,8 @@ const getCourseworkTeams = async (classId, courseworkId, lockedQuery) => {
     teamMembers: membersByTeamId.get(team._id.toString()) || [],
     courseworkName,
     className,
+    hasJoinedTeam:
+    joinedTeamId === team._id.toString(),
   }));
 };
 

@@ -82,6 +82,7 @@ const getCourseworkTeams = async (req, res) => {
       classId,
       courseworkId,
       locked,
+      req.user.id
     );
 
     res.status(200).json({
