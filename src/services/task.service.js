@@ -367,11 +367,21 @@ const updateTask = async (taskId, userId, updateData) => {
     Notification Rules
   */
 
-  const actorName = isCreator
-    ? `${task.creator_id.first_name} ${task.creator_id.last_name}`
-    : `${task.assignee_id.first_name} ${task.assignee_id.last_name}`;
+ const actorName = isCreator
+  ? `${task.creator_id.first_name} ${task.creator_id.last_name}`
+  : `${task.assignee_id.first_name} ${task.assignee_id.last_name}`;
 
-  const notificationMessage = `${classObj.course_code} | ${coursework.name}
+const creatorId = task.creator_id._id.toString();
+const assigneeId = task.assignee_id?._id.toString();
+const currentUserId = userId.toString();
+
+const notificationMessage =
+  creatorId === assigneeId &&
+  currentUserId === creatorId
+    ? `${classObj.course_code} | ${coursework.name}
+
+You updated the task: ${task.name}`
+    : `${classObj.course_code} | ${coursework.name}
 
 ${actorName} updated the task: ${task.name}`;
 
@@ -380,42 +390,27 @@ ${actorName} updated the task: ${task.name}`;
     Notify assignee
   */
 
-  if (isCreator && task.assignee_id) {
-    await notificationService.createNotification({
-      userId: task.assignee_id._id,
+ if (isCreator && task.assignee_id) {
+  await notificationService.createNotification({
+    userId: task.assignee_id._id,
+    type: "TASK_UPDATED",
+    message: notificationMessage,
+    referenceId: task._id,
+    courseCode: classObj.course_code,
+    classColor: classObj.class_color,
+  });
+}
 
-      type: "TASK_UPDATED",
-
-      message: notificationMessage,
-
-      referenceId: task._id,
-
-      courseCode: classObj.course_code,
-
-      classColor: classObj.class_color,
-    });
-  }
-
-  /*
-    Assignee edited task
-    Notify creator
-  */
-
-  if (isAssignee && task.creator_id) {
-    await notificationService.createNotification({
-      userId: task.creator_id._id,
-
-      type: "TASK_UPDATED",
-
-      message: notificationMessage,
-
-      referenceId: task._id,
-
-      courseCode: classObj.course_code,
-
-      classColor: classObj.class_color,
-    });
-  }
+if (isAssignee && task.creator_id) {
+  await notificationService.createNotification({
+    userId: task.creator_id._id,
+    type: "TASK_UPDATED",
+    message: notificationMessage,
+    referenceId: task._id,
+    courseCode: classObj.course_code,
+    classColor: classObj.class_color,
+  });
+}
 
   return task;
 };
