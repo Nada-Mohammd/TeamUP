@@ -76,13 +76,37 @@ const taskSchema = new Schema(
     },
 
     marked_as_done_at: {
-  type: Date,
-  default: null,
-},
+      type: Date,
+      default: null,
+    },
 
     deliverable_file_url: {
       type: String,
       default: null,
+    },
+    
+    requiredSkills: {
+      type: [String],
+      default: [],
+      // Normalized skill names (e.g. "React", "MongoDB") needed to complete this task.
+      // Used only by the AI generate&assign flow for matching.
+    },
+
+    complexity: {
+      type: String,
+      enum: {
+        values: ["low", "medium", "high"],
+        message: "{VALUE} is not a supported complexity level.",
+      },
+      default: null,
+      // Used by the AI flow for fairness/load balancing. Null for manual tasks.
+    },
+
+    dependsOn: {
+      type: [Schema.Types.ObjectId],
+      ref: "Task",
+      default: [],
+      // Other tasks that must logically finish first. Used only for AI deadline sequencing.
     },
   },
   {

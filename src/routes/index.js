@@ -25,8 +25,10 @@ const taskRoutes = require('./task.routes');
 // const projectRoutes = require('./project.routes');
 
 const aiCourseworkRoutes = require("./aiCoursework.routes");
+const aiTaskRoutes = require("./aiTask.routes");
 
 router.use("/ai", aiCourseworkRoutes);
+router.use("/ai-tasks", aiTaskRoutes);
 // 2. Mount them on their base paths
 router.use("/auth", authRoutes);
 router.use("/classes", classRoutes);
