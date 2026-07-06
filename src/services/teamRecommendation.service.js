@@ -97,6 +97,48 @@ function calculateTeamQualityScore(teamMemberProfiles = []) {
   );
 }
 
+function calculateTeamRatingScore(teamMemberProfiles = []) {
+  if (!teamMemberProfiles.length) return 0;
+
+  const ratingScores = teamMemberProfiles
+    .map((profile) => {
+      if (!Array.isArray(profile?.ratings) || profile.ratings.length === 0) {
+        return null;
+      }
+
+      return getRatingScore(profile.ratings);
+    })
+    .filter((score) => score != null);
+
+  if (ratingScores.length === 0) {
+    return 0;
+  }
+
+  return (
+    ratingScores.reduce((sum, score) => sum + score, 0) / ratingScores.length
+  );
+}
+
+function calculateTeamGpaScore(teamMemberProfiles = []) {
+  if (!teamMemberProfiles.length) return 0;
+
+  const gpaScores = teamMemberProfiles
+    .map((profile) => {
+      if (profile?.gpa == null) {
+        return null;
+      }
+
+      return getGpaScore(profile.gpa);
+    })
+    .filter((score) => score != null);
+
+  if (gpaScores.length === 0) {
+    return 0;
+  }
+
+  return gpaScores.reduce((sum, score) => sum + score, 0) / gpaScores.length;
+}
+
 function buildTeamRecommendationReason({
   teamName,
   teamMissingSkills = [],
@@ -171,9 +213,12 @@ function calculateTeamRecommendationScore({
       skills: memberProfile?.skills || [],
       availability: normalizeAvailabilityValue(memberProfile?.availability),
       gpa: memberProfile?.gpa,
+      ratings: memberProfile?.ratings || [],
       score: memberResult.score,
       matchedSkills: memberResult.matchedSkills,
       courseworkMatchedSkills: memberResult.courseworkMatchedSkills,
+      ratingScore: memberResult.breakdown.ratingScore,
+      gpaScore: memberResult.breakdown.gpaScore,
       breakdown: memberResult.breakdown,
     };
   });
@@ -195,6 +240,8 @@ function calculateTeamRecommendationScore({
   const vacancyBoost = vacancyFraction * 10;
 
   const teamQualityScore = calculateTeamQualityScore(teamMemberProfiles);
+  const teamRatingScore = calculateTeamRatingScore(teamMemberProfiles);
+  const teamGpaScore = calculateTeamGpaScore(teamMemberProfiles);
   const teamQualityBoost = teamQualityScore * 5;
 
   const finalScore = Math.min(
@@ -223,6 +270,8 @@ function calculateTeamRecommendationScore({
     baseScore: Number(baseScore.toFixed(2)),
     vacancyBoost: Number(vacancyBoost.toFixed(2)),
     teamQualityBoost: Number(teamQualityBoost.toFixed(2)),
+    teamRatingScore: Number(teamRatingScore.toFixed(2)),
+    teamGpaScore: Number(teamGpaScore.toFixed(2)),
     score: Number(finalScore.toFixed(2)),
     breakdown: {
       aggregateScore: aggregateResult.score,
@@ -230,6 +279,8 @@ function calculateTeamRecommendationScore({
       baseScore: Number(baseScore.toFixed(2)),
       vacancyBoost: Number(vacancyBoost.toFixed(2)),
       teamQualityBoost: Number(teamQualityBoost.toFixed(2)),
+      teamRatingScore: Number(teamRatingScore.toFixed(2)),
+      teamGpaScore: Number(teamGpaScore.toFixed(2)),
     },
     reason,
   };
@@ -238,6 +289,8 @@ function calculateTeamRecommendationScore({
 module.exports = {
   buildTeamAggregateProfile,
   calculateTeamQualityScore,
+  calculateTeamRatingScore,
+  calculateTeamGpaScore,
   calculateTeamRecommendationScore,
   buildTeamRecommendationReason,
 };

@@ -707,6 +707,8 @@ async function suggestTeamsForStudent(req, res) {
           baseScore: teamResult.baseScore,
           vacancyBoost: teamResult.vacancyBoost,
           teamQualityBoost: teamResult.teamQualityBoost,
+          teamRatingScore: teamResult.teamRatingScore,
+          teamGpaScore: teamResult.teamGpaScore,
           score: teamResult.score,
           breakdown: teamResult.breakdown,
           reason: teamResult.reason,
