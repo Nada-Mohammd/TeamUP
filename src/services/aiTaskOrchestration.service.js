@@ -43,6 +43,7 @@ async function loadContext(teamId) {
     ratings: p.ratings || [],
     first_name: p.first_name,
     last_name: p.last_name,
+    profilePicture: p.profile_picture?.storagePath || null,
   }));
 
   if (members.length < memberUserIds.length) {
@@ -182,7 +183,7 @@ async function runGenerateAndAssign({ teamId, userId, excludeList = [], regenera
         .map((tempId) => taskNameByTempId.get(tempId))
         .filter(Boolean),
       assignee: assignee
-        ? { id: assignee._id, name: assignee.first_name }
+        ? { id: assignee._id, name: assignee.first_name, profilePicture: assignee.profilePicture }
         : null,
       reasoning: r ? r.reason : null,
       isOverloaded: r ? r.isOverloaded : false,
@@ -197,6 +198,7 @@ async function runGenerateAndAssign({ teamId, userId, excludeList = [], regenera
     id: m._id,
     name: [m.first_name, m.last_name].filter(Boolean).join(" "),
     taskCount: taskCountByMember.get(String(m._id)) || 0,
+    profilePicture: m.profilePicture,
   }));
 
   return {
