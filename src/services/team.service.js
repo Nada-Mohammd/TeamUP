@@ -57,14 +57,20 @@ const createTeam = async (userId, teamData) => {
     leaderId: userId,
   });
 
-  const existingMembership = await TeamMember.findOne({
-    studentId: userId,
-  }).populate({
-    path: "teamId",
-    match: { courseworkId },
-  });
+  const existingMemberships = await TeamMember.find({ studentId: userId })
+    .populate({
+      path: "teamId",
+      select: "courseworkId",
+    })
+    .select("teamId");
 
-  if (existingTeam || (existingMembership && existingMembership.teamId)) {
+  const isAlreadyInThisCoursework = existingMemberships.some(
+    (membershipDoc) =>
+      membershipDoc.teamId &&
+      membershipDoc.teamId.courseworkId?.toString() === courseworkId.toString(),
+  );
+
+  if (existingTeam || isAlreadyInThisCoursework) {
     throw {
       message: "You are already part of a team for this coursework.",
       statusCode: 409,
@@ -145,7 +151,12 @@ const parseLockedQuery = (locked) => {
   throw new Error('Invalid locked query value. Use "true" or "false".');
 };
 
-const getCourseworkTeams = async (classId, courseworkId, lockedQuery, userId) => {
+const getCourseworkTeams = async (
+  classId,
+  courseworkId,
+  lockedQuery,
+  userId,
+) => {
   const isLocked = parseLockedQuery(lockedQuery);
 
   const classDoc = await Class.findById(classId).select("course_name");
@@ -178,14 +189,14 @@ const getCourseworkTeams = async (classId, courseworkId, lockedQuery, userId) =>
   const teamIds = teams.map((team) => team._id);
   let joinedTeamId = null;
 
-if (userId) {
-  const myMembership = await TeamMember.findOne({
-    teamId: { $in: teamIds },
-    studentId: userId,
-  }).select("teamId");
+  if (userId) {
+    const myMembership = await TeamMember.findOne({
+      teamId: { $in: teamIds },
+      studentId: userId,
+    }).select("teamId");
 
-  joinedTeamId = myMembership?.teamId?.toString() || null;
-}
+    joinedTeamId = myMembership?.teamId?.toString() || null;
+  }
 
   const members = await TeamMember.find({ teamId: { $in: teamIds } })
     .populate({
@@ -227,8 +238,7 @@ if (userId) {
     teamMembers: membersByTeamId.get(team._id.toString()) || [],
     courseworkName,
     className,
-    hasJoinedTeam:
-    joinedTeamId === team._id.toString(),
+    hasJoinedTeam: joinedTeamId === team._id.toString(),
   }));
 };
 
@@ -354,6 +364,22 @@ const getTeamDetails = async (courseworkId, teamId) => {
     throw { message: "Team not found", statusCode: 404 };
   }
 
+  if (!team.classId) {
+    throw {
+      message:
+        "This team belongs to a deleted class and is no longer available.",
+      statusCode: 410,
+    };
+  }
+
+  if (!team.courseworkId) {
+    throw {
+      message:
+        "This team belongs to a deleted coursework and is no longer available.",
+      statusCode: 410,
+    };
+  }
+
   const members = await TeamMember.find({ teamId: team._id })
     .populate("studentId", "first_name last_name role")
     .select("studentId role -_id");
@@ -416,6 +442,7 @@ const getStudentTeams = async (studentId, courseCode) => {
 
   const result = memberships
     .filter((m) => m.teamId) // safety
+    .filter((m) => m.teamId.classId && m.teamId.courseworkId)
     .filter((m) => {
       if (!courseCode) return true;
 
@@ -478,10 +505,7 @@ const getInstructorTeams = async (instructorId, courseCode) => {
   }
 
   const result = memberships
-    .filter((m) => {
-      const valid = !!m.classId;
-      return valid;
-    })
+    .filter((m) => m.classId && m.courseworkId)
     .filter((m) => {
       if (!courseCode) return true;
 
@@ -532,12 +556,21 @@ const ensureStudentEligibleForTeam = async ({
     };
   }
 
-  const teamMembership = await TeamMember.findOne({ studentId }).populate({
-    path: "teamId",
-    match: { courseworkId: team.courseworkId },
-  });
+  const teamMemberships = await TeamMember.find({ studentId })
+    .populate({
+      path: "teamId",
+      select: "courseworkId",
+    })
+    .select("teamId");
 
-  if (teamMembership && teamMembership.teamId) {
+  const isAlreadyInThisCoursework = teamMemberships.some(
+    (membershipDoc) =>
+      membershipDoc.teamId &&
+      membershipDoc.teamId.courseworkId?.toString() ===
+        team.courseworkId.toString(),
+  );
+
+  if (isAlreadyInThisCoursework) {
     throw {
       message: "Student is already in a team for this coursework.",
       statusCode: 409,
@@ -1396,15 +1429,9 @@ const getTeamInsights = async (teamId, requesterId) => {
   };
 };
 
-const submitCoursework = async (
-  teamId,
-  userId,
-  file
-) => {
+const submitCoursework = async (teamId, userId, file) => {
   if (!file) {
-    throw new Error(
-      "Submission file is required."
-    );
+    throw new Error("Submission file is required.");
   }
 
   const team = await Team.findById(teamId);
@@ -1419,46 +1446,27 @@ const submitCoursework = async (
   });
 
   if (!member) {
-    throw new Error(
-      "You are not a member of this team."
-    );
+    throw new Error("You are not a member of this team.");
   }
 
-  const coursework =
-    await Coursework.findById(
-      team.courseworkId
-    );
+  const coursework = await Coursework.findById(team.courseworkId);
 
   if (!coursework) {
-    throw new Error(
-      "Coursework not found."
-    );
+    throw new Error("Coursework not found.");
   }
 
-  if (
-    new Date() >
-    new Date(coursework.deadline)
-  ) {
-    throw new Error(
-      "Coursework deadline has passed."
-    );
+  if (new Date() > new Date(coursework.deadline)) {
+    throw new Error("Coursework deadline has passed.");
   }
-
 
   // delete old file if team is replacing submission
   if (team.courseworkSubmission?.file_url) {
-  try {
-    await deleteFromCloudinary(
-      team.courseworkSubmission.file_url,
-      "raw"
-    );
-  } catch (error) {
-    console.error(
-      "Failed to delete old coursework submission:",
-      error
-    );
+    try {
+      await deleteFromCloudinary(team.courseworkSubmission.file_url, "raw");
+    } catch (error) {
+      console.error("Failed to delete old coursework submission:", error);
+    }
   }
-}
 
   team.courseworkSubmission = {
     file_name: file.originalname,
@@ -1471,18 +1479,12 @@ const submitCoursework = async (
   await team.save();
 
   return {
-    message:
-      "Coursework submitted successfully.",
-    submission:
-      team.courseworkSubmission,
+    message: "Coursework submitted successfully.",
+    submission: team.courseworkSubmission,
   };
 };
 
-const getTeamSubmission = async (
-  teamId,
-  userId,
-  userRole,
-) => {
+const getTeamSubmission = async (teamId, userId, userRole) => {
   const team = await Team.findById(teamId);
 
   if (!team) {
@@ -1509,24 +1511,18 @@ const getTeamSubmission = async (
 
   const submission = team.courseworkSubmission;
 
-  if (
-    !submission ||
-    !submission.file_url
-  ) {
+  if (!submission || !submission.file_url) {
     throw {
       statusCode: 404,
-      message:
-        "This team has not submitted the coursework yet.",
+      message: "This team has not submitted the coursework yet.",
     };
   }
 
   let submittedBy = null;
 
   if (submission.submitted_by) {
-    const user = await User.findById(
-      submission.submitted_by
-    ).select(
-      "first_name last_name email"
+    const user = await User.findById(submission.submitted_by).select(
+      "first_name last_name email",
     );
 
     if (user) {
@@ -1548,11 +1544,7 @@ const getTeamSubmission = async (
   };
 };
 
-const rateTeamMembers = async (
-  teamId,
-  raterId,
-  ratings
-) => {
+const rateTeamMembers = async (teamId, raterId, ratings) => {
   const team = await Team.findById(teamId);
 
   if (!team) {
@@ -1562,9 +1554,7 @@ const rateTeamMembers = async (
     };
   }
 
-  const coursework = await Coursework.findById(
-    team.courseworkId
-  );
+  const coursework = await Coursework.findById(team.courseworkId);
 
   if (!coursework) {
     throw {
@@ -1573,14 +1563,10 @@ const rateTeamMembers = async (
     };
   }
 
-  if (
-    new Date() <
-    new Date(coursework.deadline)
-  ) {
+  if (new Date() < new Date(coursework.deadline)) {
     throw {
       statusCode: 400,
-      message:
-        "Ratings are allowed only after the coursework deadline.",
+      message: "Ratings are allowed only after the coursework deadline.",
     };
   }
 
@@ -1588,104 +1574,71 @@ const rateTeamMembers = async (
     teamId,
   });
 
-  const memberIds = members.map((m) =>
-    m.studentId.toString()
-  );
+  const memberIds = members.map((m) => m.studentId.toString());
 
-  if (
-    !memberIds.includes(
-      raterId.toString()
-    )
-  ) {
+  if (!memberIds.includes(raterId.toString())) {
     throw {
       statusCode: 403,
-      message:
-        "You are not a member of this team.",
+      message: "You are not a member of this team.",
     };
   }
 
-  if (
-    !ratings ||
-    !Array.isArray(ratings) ||
-    ratings.length === 0
-  ) {
+  if (!ratings || !Array.isArray(ratings) || ratings.length === 0) {
     throw {
       statusCode: 400,
-      message:
-        "Ratings array is required.",
+      message: "Ratings array is required.",
     };
   }
 
   for (const item of ratings) {
-    const {
-      ratedUserId,
-      stars,
-      comment,
-    } = item;
+    const { ratedUserId, stars, comment } = item;
 
     if (!ratedUserId) {
       throw {
         statusCode: 400,
-        message:
-          "ratedUserId is required.",
+        message: "ratedUserId is required.",
       };
     }
 
     if (stars < 1 || stars > 5) {
       throw {
         statusCode: 400,
-        message:
-          "Stars must be between 1 and 5.",
+        message: "Stars must be between 1 and 5.",
       };
     }
 
-    if (
-      ratedUserId.toString() ===
-      raterId.toString()
-    ) {
+    if (ratedUserId.toString() === raterId.toString()) {
       throw {
         statusCode: 400,
-        message:
-          "You cannot rate yourself.",
+        message: "You cannot rate yourself.",
       };
     }
 
-    if (
-      !memberIds.includes(
-        ratedUserId.toString()
-      )
-    ) {
+    if (!memberIds.includes(ratedUserId.toString())) {
       throw {
         statusCode: 400,
-        message:
-          `User ${ratedUserId} is not a member of this team.`,
+        message: `User ${ratedUserId} is not a member of this team.`,
       };
     }
 
-    const profile =
-      await StudentProfile.findOne({
-        user_id: ratedUserId,
-      });
+    const profile = await StudentProfile.findOne({
+      user_id: ratedUserId,
+    });
 
     if (!profile) {
       throw {
         statusCode: 404,
-        message:
-          `Profile for user ${ratedUserId} not found.`,
+        message: `Profile for user ${ratedUserId} not found.`,
       };
     }
 
-    const existingRating =
-      profile.ratings.find(
-        (r) =>
-          r.raterId.toString() ===
-          raterId.toString()
-      );
+    const existingRating = profile.ratings.find(
+      (r) => r.raterId.toString() === raterId.toString(),
+    );
 
     if (existingRating) {
       existingRating.stars = stars;
-      existingRating.comment =
-        comment || null;
+      existingRating.comment = comment || null;
     } else {
       profile.ratings.push({
         raterId,
@@ -1698,8 +1651,7 @@ const rateTeamMembers = async (
   }
 
   return {
-    message:
-      "Ratings submitted successfully.",
+    message: "Ratings submitted successfully.",
   };
 };
 
@@ -1720,5 +1672,5 @@ module.exports = {
   getTeamInsights,
   submitCoursework,
   getTeamSubmission,
-  rateTeamMembers
+  rateTeamMembers,
 };
